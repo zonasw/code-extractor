@@ -15,6 +15,10 @@ pub struct AppConfig {
     pub last_directories: Vec<String>,
     pub ignore_list: Vec<String>,
     pub extension_filter: Vec<String>,
+    #[serde(default)]
+    pub prompt_prefix: String,
+    #[serde(default)]
+    pub prompt_suffix: String,
 }
 
 impl Default for AppConfig {
@@ -37,6 +41,8 @@ impl Default for AppConfig {
                 "coverage".to_string(),
             ],
             extension_filter: vec![],
+            prompt_prefix: String::new(),
+            prompt_suffix: String::new(),
         }
     }
 }

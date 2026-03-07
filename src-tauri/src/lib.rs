@@ -1,7 +1,12 @@
 mod commands;
 mod models;
 
-use commands::{read_directory, read_file_content, write_text_file, get_app_config, save_app_config};
+use commands::{
+    read_directory, read_file_content, write_text_file,
+    get_app_config, save_app_config,
+    get_selected_paths, save_selected_paths,
+    get_selection_presets, save_selection_presets,
+};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -16,6 +21,10 @@ pub fn run() {
             write_text_file,
             get_app_config,
             save_app_config,
+            get_selected_paths,
+            save_selected_paths,
+            get_selection_presets,
+            save_selection_presets,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

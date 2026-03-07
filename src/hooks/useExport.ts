@@ -1,12 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useAppContext } from "@/context/AppContext";
-import { FileNode } from "@/types";
+import { FileNode, OutputFormat } from "@/types";
 
 export function useExport() {
   const { state, dispatch } = useAppContext();
 
-  // 将选中路径按根目录分组，保持目录树中的顺序
   function groupByRoot(): Array<{ root: FileNode; paths: string[] }> {
     return state.rootNodes
       .map((root) => {
@@ -19,43 +18,85 @@ export function useExport() {
       .filter((g) => g.paths.length > 0);
   }
 
-  // 相对路径：去掉根目录前缀
   function toRelative(filePath: string, rootPath: string): string {
     const prefix = rootPath.endsWith("/") ? rootPath : rootPath + "/";
     return filePath.startsWith(prefix) ? filePath.slice(prefix.length) : filePath;
   }
 
-  // 构建分组格式的文本
-  async function buildContent(groups: Array<{ root: FileNode; paths: string[] }>) {
+  function xmlEscape(s: string): string {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  async function buildContent(groups: Array<{ root: FileNode; paths: string[] }>, format?: OutputFormat) {
+    const fmt = format ?? state.outputFormat;
     const parts: string[] = [];
 
-    for (const { root, paths } of groups) {
-      const rootName = root.path.split("/").pop() || root.path;
-
-      // 每个根目录一个标题块
-      parts.push(`${"=".repeat(64)}\n`);
-      parts.push(`Project: ${rootName}  (${root.path})\n`);
-      parts.push(`${"=".repeat(64)}\n\n`);
-
-      for (const p of paths) {
-        const relPath = toRelative(p, root.path);
-        let content: string;
-        try {
-          content = await invoke<string>("read_file_content", { path: p });
-        } catch {
-          content = "[Error reading file]";
+    if (fmt === "xml") {
+      parts.push("<documents>\n");
+      let index = 1;
+      for (const { root, paths } of groups) {
+        for (const p of paths) {
+          const relPath = toRelative(p, root.path);
+          let content: string;
+          try {
+            content = await invoke<string>("read_file_content", { path: p });
+          } catch {
+            content = "[Error reading file]";
+          }
+          parts.push(`  <document index="${index}">\n`);
+          parts.push(`    <source>${xmlEscape(relPath)}</source>\n`);
+          parts.push(`    <document_content>${xmlEscape(content)}</document_content>\n`);
+          parts.push(`  </document>\n`);
+          index++;
         }
-        parts.push(`${relPath}:\n${content}\n\n`);
+      }
+      parts.push("</documents>");
+    } else if (fmt === "markdown") {
+      for (const { root, paths } of groups) {
+        const rootName = root.path.split("/").pop() || root.path;
+        parts.push(`# ${rootName}\n\n`);
+        for (const p of paths) {
+          const relPath = toRelative(p, root.path);
+          const ext = p.split(".").pop() || "";
+          let content: string;
+          try {
+            content = await invoke<string>("read_file_content", { path: p });
+          } catch {
+            content = "[Error reading file]";
+          }
+          parts.push(`## ${relPath}\n\`\`\`${ext}\n${content}\n\`\`\`\n\n`);
+        }
+      }
+    } else {
+      // plain
+      for (const { root, paths } of groups) {
+        const rootName = root.path.split("/").pop() || root.path;
+        parts.push(`${"=".repeat(64)}\n`);
+        parts.push(`Project: ${rootName}  (${root.path})\n`);
+        parts.push(`${"=".repeat(64)}\n\n`);
+        for (const p of paths) {
+          const relPath = toRelative(p, root.path);
+          let content: string;
+          try {
+            content = await invoke<string>("read_file_content", { path: p });
+          } catch {
+            content = "[Error reading file]";
+          }
+          parts.push(`${relPath}:\n${content}\n\n`);
+        }
       }
     }
 
-    return parts.join("");
+    let result = parts.join("");
+    const { prompt_prefix, prompt_suffix } = state.config;
+    if (prompt_prefix) result = prompt_prefix + "\n\n" + result;
+    if (prompt_suffix) result = result + "\n\n" + prompt_suffix;
+    return result;
   }
 
   async function generatePreview() {
     const groups = groupByRoot();
     if (groups.length === 0) return;
-
     dispatch({ type: "SET_LOADING", payload: true });
     try {
       const content = await buildContent(groups);
@@ -65,16 +106,32 @@ export function useExport() {
     }
   }
 
+  /** 直接生成内容并复制到剪贴板，无需先生成预览 */
+  async function generateAndCopy(): Promise<number> {
+    const groups = groupByRoot();
+    if (groups.length === 0) return 0;
+    dispatch({ type: "SET_LOADING", payload: true });
+    try {
+      const content = await buildContent(groups);
+      await navigator.clipboard.writeText(content);
+      dispatch({ type: "SET_PREVIEW_CONTENT", payload: content });
+      return content.length;
+    } finally {
+      dispatch({ type: "SET_LOADING", payload: false });
+    }
+  }
+
   async function exportFiles(): Promise<string | null> {
     const groups = groupByRoot();
     if (groups.length === 0) return null;
-
+    const fmt = state.outputFormat;
+    const extMap = { plain: "txt", markdown: "md", xml: "xml" };
+    const ext = extMap[fmt];
     const outputPath = await save({
-      filters: [{ name: "Text file", extensions: ["txt"] }],
-      defaultPath: "extracted.txt",
+      filters: [{ name: "Output file", extensions: [ext] }],
+      defaultPath: `extracted.${ext}`,
     });
     if (!outputPath) return null;
-
     dispatch({ type: "SET_LOADING", payload: true });
     try {
       const content = await buildContent(groups);
@@ -88,5 +145,5 @@ export function useExport() {
     }
   }
 
-  return { generatePreview, exportFiles };
+  return { generatePreview, generateAndCopy, exportFiles };
 }

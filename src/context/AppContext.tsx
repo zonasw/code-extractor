@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useReducer, Dispatch } from "react";
-import { FileNode, AppConfig } from "@/types";
+import { FileNode, AppConfig, OutputFormat } from "@/types";
 
 interface AppState {
   rootNodes: FileNode[];
@@ -7,6 +7,8 @@ interface AppState {
   config: AppConfig;
   previewContent: string | null;
   isLoading: boolean;
+  outputFormat: OutputFormat;
+  showShortcuts: boolean;
 }
 
 type AppAction =
@@ -20,7 +22,9 @@ type AppAction =
   | { type: "REMOVE_SELECTED_PATH"; payload: string }
   | { type: "SET_CONFIG"; payload: AppConfig }
   | { type: "SET_PREVIEW_CONTENT"; payload: string | null }
-  | { type: "SET_LOADING"; payload: boolean };
+  | { type: "SET_LOADING"; payload: boolean }
+  | { type: "SET_OUTPUT_FORMAT"; payload: OutputFormat }
+  | { type: "SET_SHOW_SHORTCUTS"; payload: boolean };
 
 const defaultConfig: AppConfig = {
   last_directories: [],
@@ -30,6 +34,8 @@ const defaultConfig: AppConfig = {
     "vendor", ".DS_Store", "coverage",
   ],
   extension_filter: [],
+  prompt_prefix: "",
+  prompt_suffix: "",
 };
 
 const initialState: AppState = {
@@ -38,6 +44,8 @@ const initialState: AppState = {
   config: defaultConfig,
   previewContent: null,
   isLoading: false,
+  outputFormat: "plain",
+  showShortcuts: false,
 };
 
 function appReducer(state: AppState, action: AppAction): AppState {
@@ -96,6 +104,10 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return { ...state, previewContent: action.payload };
     case "SET_LOADING":
       return { ...state, isLoading: action.payload };
+    case "SET_OUTPUT_FORMAT":
+      return { ...state, outputFormat: action.payload };
+    case "SET_SHOW_SHORTCUTS":
+      return { ...state, showShortcuts: action.payload };
     default:
       return state;
   }

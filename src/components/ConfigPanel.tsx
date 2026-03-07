@@ -1,17 +1,20 @@
 import { useState } from "react";
-import { X, RefreshCw, Plus } from "lucide-react";
+import { X, RefreshCw, Plus, Save, Play, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import { useAppContext } from "@/context/AppContext";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useDirectoryTree } from "@/hooks/useDirectoryTree";
+import { usePresets } from "@/hooks/usePresets";
 
 export function ConfigPanel() {
   const { state } = useAppContext();
-  const { updateIgnoreList, updateExtensionFilter } = useAppConfig();
+  const { updateIgnoreList, updateExtensionFilter, updatePromptPrefix, updatePromptSuffix } = useAppConfig();
   const { refreshDirectory } = useDirectoryTree();
+  const { presets, saveCurrentAsPreset, loadPreset, deletePreset } = usePresets();
 
   async function refreshAll() {
     await Promise.allSettled(
@@ -20,6 +23,9 @@ export function ConfigPanel() {
   }
   const [newIgnore, setNewIgnore] = useState("");
   const [newExt, setNewExt] = useState("");
+  const [prefixLocal, setPrefixLocal] = useState(state.config.prompt_prefix);
+  const [suffixLocal, setSuffixLocal] = useState(state.config.prompt_suffix);
+  const [newPresetName, setNewPresetName] = useState("");
 
   function addIgnore() {
     const v = newIgnore.trim();
@@ -127,6 +133,82 @@ export function ConfigPanel() {
           <Button size="sm" variant="outline" onClick={addExt} className="h-7 px-2">
             <Plus className="w-3.5 h-3.5" />
           </Button>
+        </div>
+      </div>
+
+      <Separator />
+
+      <div className="space-y-3">
+        <p className="text-sm font-medium">提示词模板</p>
+        <div className="space-y-1.5">
+          <p className="text-xs text-muted-foreground">前缀（添加到输出最前面）</p>
+          <Textarea
+            value={prefixLocal}
+            onChange={(e) => setPrefixLocal(e.target.value)}
+            onBlur={() => updatePromptPrefix(prefixLocal)}
+            placeholder="例：请仔细阅读以下代码..."
+            className="text-xs resize-none h-20"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <p className="text-xs text-muted-foreground">后缀（添加到输出最后面）</p>
+          <Textarea
+            value={suffixLocal}
+            onChange={(e) => setSuffixLocal(e.target.value)}
+            onBlur={() => updatePromptSuffix(suffixLocal)}
+            placeholder="例：请重点关注..."
+            className="text-xs resize-none h-20"
+          />
+        </div>
+      </div>
+
+      <Separator />
+
+      <div className="space-y-3">
+        <p className="text-sm font-medium">预设模板</p>
+        <div className="flex gap-2">
+          <Input
+            value={newPresetName}
+            onChange={(e) => setNewPresetName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && newPresetName.trim() && (saveCurrentAsPreset(newPresetName.trim()), setNewPresetName(""))}
+            placeholder="预设名称..."
+            className="h-7 text-sm"
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => { if (newPresetName.trim()) { saveCurrentAsPreset(newPresetName.trim()); setNewPresetName(""); } }}
+            className="h-7 px-2"
+            disabled={!newPresetName.trim() || state.selectedPaths.size === 0}
+            title="保存当前选择为预设"
+          >
+            <Save className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+        <div className="space-y-1">
+          {presets.length === 0 && (
+            <p className="text-xs text-muted-foreground">暂无预设，选中文件后保存</p>
+          )}
+          {presets.map((preset) => (
+            <div key={preset.id} className="flex items-center gap-1.5 px-2 py-1.5 rounded-md border bg-muted/30">
+              <span className="text-xs flex-1 truncate" title={preset.name}>{preset.name}</span>
+              <span className="text-xs text-muted-foreground shrink-0">{preset.paths.length} 个文件</span>
+              <button
+                onClick={() => loadPreset(preset)}
+                className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-foreground"
+                title="载入预设"
+              >
+                <Play className="w-3 h-3" />
+              </button>
+              <button
+                onClick={() => deletePreset(preset.id)}
+                className="p-0.5 rounded hover:bg-accent text-muted-foreground hover:text-destructive"
+                title="删除预设"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
         </div>
       </div>
     </div>

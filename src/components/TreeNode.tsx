@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
-import { ChevronRight, ChevronDown, File, Folder, FolderOpen } from "lucide-react";
+import { ChevronRight, ChevronDown, File, Folder, FolderOpen, AlertTriangle } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   ContextMenu,
@@ -12,22 +12,37 @@ import {
 import { FileNode, CheckState } from "@/types";
 import { useAppContext } from "@/context/AppContext";
 import { useDirectoryTree } from "@/hooks/useDirectoryTree";
-import { getFileColor, collectAllLeaves } from "@/lib/treeUtils";
+import { getFileColor, collectAllLeaves, isBinaryFile, isLargeFile } from "@/lib/treeUtils";
+
+export interface ExpandStamp {
+  expanded: boolean;
+  n: number;
+}
 
 interface TreeNodeProps {
   node: FileNode;
   depth?: number;
   forceExpand?: boolean;
+  expandStamp?: ExpandStamp | null;
 }
 
-export function TreeNode({ node, depth = 0, forceExpand = false }: TreeNodeProps) {
+export function TreeNode({ node, depth = 0, forceExpand = false, expandStamp }: TreeNodeProps) {
   const [expanded, setExpanded] = useState(depth < 2);
   const { state, dispatch } = useAppContext();
   const { toggleNode, collectLeaves } = useDirectoryTree();
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  // Respond to global expand/collapse stamp
+  useEffect(() => {
+    if (expandStamp != null) {
+      setExpanded(expandStamp.expanded);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandStamp?.n]);
 
   const isExpanded = forceExpand || expanded;
 
-  // 目录节点：一次性计算叶子节点，同时用于 checkState 和 dirCount
+  // Compute dir leaves once
   const dirLeaves = node.is_dir ? collectLeaves(node) : null;
   const dirSelectedCount = dirLeaves
     ? dirLeaves.filter((p) => state.selectedPaths.has(p)).length
@@ -44,16 +59,54 @@ export function TreeNode({ node, depth = 0, forceExpand = false }: TreeNodeProps
   }
 
   const checkState = getCheckState();
+  const isFileSelected = !node.is_dir && checkState === "checked";
 
   const dirCount = node.is_dir && dirLeaves
     ? { selected: dirSelectedCount, total: dirLeaves.length }
     : null;
+
+  // File-level warnings
+  const binary = !node.is_dir && isBinaryFile(node.extension);
+  const large = !node.is_dir && isLargeFile(node.size);
 
   function handleRowClick() {
     if (node.is_dir) {
       setExpanded((v) => !v);
     } else {
       toggleNode(node);
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    switch (e.key) {
+      case " ":
+        e.preventDefault();
+        toggleNode(node);
+        break;
+      case "Enter":
+        e.preventDefault();
+        if (node.is_dir) setExpanded((v) => !v);
+        else toggleNode(node);
+        break;
+      case "ArrowRight":
+        e.preventDefault();
+        if (node.is_dir && !isExpanded) setExpanded(true);
+        break;
+      case "ArrowLeft":
+        e.preventDefault();
+        if (node.is_dir && isExpanded) setExpanded(false);
+        break;
+      case "ArrowDown":
+      case "ArrowUp": {
+        e.preventDefault();
+        const allRows = Array.from(
+          document.querySelectorAll<HTMLElement>("[data-tree-row]")
+        );
+        const idx = allRows.indexOf(rowRef.current!);
+        const target = e.key === "ArrowDown" ? allRows[idx + 1] : allRows[idx - 1];
+        target?.focus();
+        break;
+      }
     }
   }
 
@@ -86,9 +139,15 @@ export function TreeNode({ node, depth = 0, forceExpand = false }: TreeNodeProps
 
   const rowContent = (
     <div
-      className="flex items-center gap-1 py-0.5 px-2 hover:bg-accent rounded-sm cursor-pointer select-none group"
+      ref={rowRef}
+      data-tree-row
+      tabIndex={0}
+      className={`flex items-center gap-1 py-0.5 px-2 rounded-sm cursor-pointer select-none group outline-none
+        focus-visible:ring-1 focus-visible:ring-ring
+        ${isFileSelected ? "bg-primary/10 hover:bg-primary/15" : "hover:bg-accent"}`}
       style={{ paddingLeft: `${8 + indent}px` }}
       onClick={handleRowClick}
+      onKeyDown={handleKeyDown}
     >
       {node.is_dir ? (
         <span className="w-4 h-4 flex items-center justify-center text-muted-foreground">
@@ -118,12 +177,22 @@ export function TreeNode({ node, depth = 0, forceExpand = false }: TreeNodeProps
           <Folder className="w-4 h-4 text-yellow-500 shrink-0" />
         )
       ) : (
-        <File className={`w-4 h-4 shrink-0 ${getFileColor(node.extension)}`} />
+        <File className={`w-4 h-4 shrink-0 ${binary ? "text-muted-foreground/40" : getFileColor(node.extension)}`} />
       )}
 
-      <span className="text-sm truncate flex-1" title={node.name}>
+      <span className={`text-sm truncate flex-1 ${binary ? "text-muted-foreground/50 line-through" : ""}`} title={node.name}>
         {node.name}
       </span>
+
+      {/* Binary / large file badges */}
+      {binary && (
+        <span className="text-[10px] text-muted-foreground/50 shrink-0 italic">bin</span>
+      )}
+      {!binary && large && (
+        <span title="文件较大，将占用较多 token" className="shrink-0 opacity-0 group-hover:opacity-100">
+          <AlertTriangle className="w-3 h-3 text-yellow-500" />
+        </span>
+      )}
 
       {node.is_dir && dirCount !== null && dirCount.total > 0 && (
         <span
@@ -139,7 +208,7 @@ export function TreeNode({ node, depth = 0, forceExpand = false }: TreeNodeProps
         </span>
       )}
 
-      {!node.is_dir && node.size > 0 && (
+      {!node.is_dir && !binary && node.size > 0 && (
         <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100 shrink-0">
           {formatSize(node.size)}
         </span>
@@ -165,10 +234,10 @@ export function TreeNode({ node, depth = 0, forceExpand = false }: TreeNodeProps
             </>
           ) : (
             <>
-              <ContextMenuItem onClick={handleCopyPath}>
+              <ContextMenuItem onClick={handleCopyPath} disabled={binary}>
                 复制路径
               </ContextMenuItem>
-              <ContextMenuItem onClick={handleCopyContent}>
+              <ContextMenuItem onClick={handleCopyContent} disabled={binary}>
                 复制文件内容
               </ContextMenuItem>
             </>
@@ -179,7 +248,13 @@ export function TreeNode({ node, depth = 0, forceExpand = false }: TreeNodeProps
       {node.is_dir && isExpanded && node.children.length > 0 && (
         <div>
           {node.children.map((child) => (
-            <TreeNode key={child.path} node={child} depth={depth + 1} forceExpand={forceExpand} />
+            <TreeNode
+              key={child.path}
+              node={child}
+              depth={depth + 1}
+              forceExpand={forceExpand}
+              expandStamp={expandStamp}
+            />
           ))}
         </div>
       )}

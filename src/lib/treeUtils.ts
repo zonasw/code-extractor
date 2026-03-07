@@ -1,5 +1,64 @@
 import { FileNode } from "@/types";
 
+/** Known binary file extensions that cannot be read as text */
+export const BINARY_EXTENSIONS = new Set([
+  "png","jpg","jpeg","gif","webp","bmp","ico","svg",
+  "pdf","doc","docx","xls","xlsx","ppt","pptx",
+  "zip","tar","gz","rar","7z","br","zst",
+  "mp3","mp4","wav","avi","mov","mkv","flac",
+  "exe","dll","so","dylib","bin","wasm",
+  "ttf","otf","woff","woff2","eot",
+  "db","sqlite","lock",
+]);
+
+/** Returns true if file is binary (by extension) */
+export function isBinaryFile(extension: string): boolean {
+  return BINARY_EXTENSIONS.has(extension.toLowerCase());
+}
+
+/** Returns true if file size exceeds the large-file threshold (500KB) */
+export function isLargeFile(size: number): boolean {
+  return size > 500 * 1024;
+}
+
+/**
+ * Convert a glob-like pattern to a RegExp for file path matching.
+ * Supports: * (not slash), ** (any depth), ? (single char), {a,b} (alternation)
+ * Used for pattern-based file selection in the tree.
+ */
+export function globToRegex(pattern: string): RegExp {
+  let regexStr = pattern
+    .replace(/[.+^${}()|[\]\\]/g, (c) => (c === '{' || c === '}' ? c : `\\${c}`))
+    .replace(/\{([^}]+)\}/g, (_: string, inner: string) => `(${inner.split(',').map((s: string) => s.trim().replace(/[.+^$[\]\\]/g, (c: string) => `\\${c}`)).join('|')})`)
+    .replace(/\*\*/g, '§§GLOBSTAR§§')
+    .replace(/\*/g, '[^/]*')
+    .replace(/§§GLOBSTAR§§/g, '.*')
+    .replace(/\?/g, '[^/]');
+  return new RegExp(`(^|/)${regexStr}$`, 'i');
+}
+
+/** Returns true if the search string looks like a glob pattern */
+export function isGlobPattern(search: string): boolean {
+  return /[*?{]/.test(search);
+}
+
+/**
+ * Filter tree nodes by glob pattern (matches against the full path).
+ * Returns a new tree with only matching files, or null if no match.
+ */
+export function filterTreeByGlob(node: FileNode, regex: RegExp): FileNode | null {
+  if (!node.is_dir) {
+    return regex.test(node.path) ? node : null;
+  }
+  const filteredChildren = node.children
+    .map((child) => filterTreeByGlob(child, regex))
+    .filter((n): n is FileNode => n !== null);
+  if (filteredChildren.length > 0) {
+    return { ...node, children: filteredChildren };
+  }
+  return null;
+}
+
 /** 递归过滤树节点，保留名称匹配的文件及其父目录 */
 export function filterTree(node: FileNode, search: string): FileNode | null {
   if (!search.trim()) return node;

@@ -1,12 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Loader2, FileText, AlertCircle } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { Loader2, FileText, AlertCircle, ZoomIn, ZoomOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useAppContext } from "@/context/AppContext";
 import { getLanguage } from "@/lib/treeUtils";
 import SyntaxHighlighter from "react-syntax-highlighter";
 import { atomOneDark, atomOneLight } from "react-syntax-highlighter/dist/esm/styles/hljs";
 import { useTheme } from "next-themes";
+
+const FONT_SIZES = [10, 11, 12, 13, 14, 16];
+const DEFAULT_FONT_IDX = 1; // 11px
 
 export function PreviewPanel() {
   const { state } = useAppContext();
@@ -18,6 +21,7 @@ export function PreviewPanel() {
   const fileCacheRef = useRef<Map<string, string>>(new Map());
   const [, forceUpdate] = useState(0);
   const [loadingFile, setLoadingFile] = useState(false);
+  const [fontSizeIdx, setFontSizeIdx] = useState(DEFAULT_FONT_IDX);
 
   const selectedFiles = Array.from(state.selectedPaths).sort();
   const isDark = resolvedTheme === "dark";
@@ -69,39 +73,62 @@ export function PreviewPanel() {
       {/* 顶部状态栏 */}
       <div className="flex items-center gap-2 px-3 py-2 border-b shrink-0">
         <span className="text-xs text-muted-foreground">
-          {selectedFiles.length} 个文件已选中，点击左侧文件预览内容
+          {selectedFiles.length} 个文件已选中
         </span>
         <div className="flex-1" />
         {state.isLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
+        <div className="flex items-center gap-0.5">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 w-6 p-0"
+            onClick={() => setFontSizeIdx((i) => Math.max(0, i - 1))}
+            disabled={fontSizeIdx === 0}
+            title="缩小字体"
+          >
+            <ZoomOut className="w-3.5 h-3.5" />
+          </Button>
+          <span className="text-xs text-muted-foreground w-7 text-center tabular-nums">
+            {FONT_SIZES[fontSizeIdx]}
+          </span>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 w-6 p-0"
+            onClick={() => setFontSizeIdx((i) => Math.min(FONT_SIZES.length - 1, i + 1))}
+            disabled={fontSizeIdx === FONT_SIZES.length - 1}
+            title="放大字体"
+          >
+            <ZoomIn className="w-3.5 h-3.5" />
+          </Button>
+        </div>
       </div>
 
       {/* 主体：左侧文件列表 + 右侧内容 */}
       <div className="flex flex-1 overflow-hidden">
         {/* 左侧文件导航 */}
-        <div className="w-48 shrink-0 border-r flex flex-col overflow-hidden">
-          <ScrollArea className="flex-1">
-            <div className="py-1">
-              {selectedFiles.map((path) => {
-                const name = path.split("/").pop() ?? path;
-                const isActive = path === activeFile;
-                return (
-                  <button
-                    key={path}
-                    onClick={() => setActiveFile(path)}
-                    title={path}
-                    className={`w-full text-left flex items-center gap-1.5 px-2 py-1 text-xs truncate transition-colors rounded-none ${
-                      isActive
-                        ? "bg-primary/10 text-primary font-medium"
-                        : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                    }`}
-                  >
-                    <FileText className="w-3 h-3 shrink-0" />
-                    <span className="truncate">{name}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </ScrollArea>
+        <div className="w-48 shrink-0 border-r overflow-y-auto overflow-x-hidden">
+          <div className="py-1">
+            {selectedFiles.map((path) => {
+              const name = path.split("/").pop() ?? path;
+              const isActive = path === activeFile;
+              return (
+                <button
+                  key={path}
+                  onClick={() => setActiveFile(path)}
+                  title={path}
+                  className={`w-full text-left flex items-center gap-1.5 px-2 py-1 text-xs truncate transition-colors rounded-none ${
+                    isActive
+                      ? "bg-primary/10 text-primary font-medium"
+                      : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                  }`}
+                >
+                  <FileText className="w-3 h-3 shrink-0" />
+                  <span className="truncate">{name}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* 右侧内容区 */}
@@ -133,7 +160,7 @@ export function PreviewPanel() {
                 customStyle={{
                   margin: 0,
                   padding: "0.75rem",
-                  fontSize: "0.72rem",
+                  fontSize: `${FONT_SIZES[fontSizeIdx]}px`,
                   lineHeight: "1.55",
                   background: "transparent",
                   height: "100%",

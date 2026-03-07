@@ -49,13 +49,12 @@ export function TreeNode({ node, depth = 0, forceExpand = false }: TreeNodeProps
     ? { selected: dirSelectedCount, total: dirLeaves.length }
     : null;
 
-  function handleCheck(e: React.MouseEvent) {
-    e.stopPropagation();
-    toggleNode(node);
-  }
-
-  function handleToggleExpand() {
-    if (node.is_dir) setExpanded((v) => !v);
+  function handleRowClick() {
+    if (node.is_dir) {
+      setExpanded((v) => !v);
+    } else {
+      toggleNode(node);
+    }
   }
 
   async function handleCopyPath() {
@@ -89,7 +88,7 @@ export function TreeNode({ node, depth = 0, forceExpand = false }: TreeNodeProps
     <div
       className="flex items-center gap-1 py-0.5 px-2 hover:bg-accent rounded-sm cursor-pointer select-none group"
       style={{ paddingLeft: `${8 + indent}px` }}
-      onClick={handleToggleExpand}
+      onClick={handleRowClick}
     >
       {node.is_dir ? (
         <span className="w-4 h-4 flex items-center justify-center text-muted-foreground">
@@ -103,7 +102,7 @@ export function TreeNode({ node, depth = 0, forceExpand = false }: TreeNodeProps
         <span className="w-4" />
       )}
 
-      <span onClick={handleCheck} className="flex items-center">
+      <span onClick={(e) => e.stopPropagation()} className="flex items-center">
         <Checkbox
           checked={checkState === "checked"}
           data-state={checkState === "indeterminate" ? "indeterminate" : undefined}

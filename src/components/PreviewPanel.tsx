@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Loader2, FileText, AlertCircle, ZoomIn, ZoomOut } from "lucide-react";
+import { Loader2, FileText, AlertCircle, ZoomIn, ZoomOut, ArrowDownUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppContext } from "@/context/AppContext";
-import { getLanguage } from "@/lib/treeUtils";
+import { getLanguage, getSelectedFileSizes, bytesToTokens } from "@/lib/treeUtils";
 import SyntaxHighlighter from "react-syntax-highlighter";
 import { atomOneDark, atomOneLight } from "react-syntax-highlighter/dist/esm/styles/hljs";
 import { useTheme } from "next-themes";
@@ -22,8 +22,16 @@ export function PreviewPanel() {
   const [, forceUpdate] = useState(0);
   const [loadingFile, setLoadingFile] = useState(false);
   const [fontSizeIdx, setFontSizeIdx] = useState(DEFAULT_FONT_IDX);
+  const [sortBySize, setSortBySize] = useState(false);
 
-  const selectedFiles = Array.from(state.selectedPaths).sort();
+  // 按大小排序时使用 getSelectedFileSizes（已按 size 降序），否则按路径字母序
+  const fileSizeMap = new Map(
+    getSelectedFileSizes(state.rootNodes, state.selectedPaths).map((f) => [f.path, f.size])
+  );
+  const selectedFiles = sortBySize
+    ? getSelectedFileSizes(state.rootNodes, state.selectedPaths).map((f) => f.path)
+    : Array.from(state.selectedPaths).sort();
+
   const isDark = resolvedTheme === "dark";
 
   // 选择变化时：若 activeFile 已不在选中集合中，重置
@@ -77,6 +85,16 @@ export function PreviewPanel() {
         </span>
         <div className="flex-1" />
         {state.isLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
+        <Button
+          size="sm"
+          variant={sortBySize ? "secondary" : "ghost"}
+          className="h-6 px-2 text-xs gap-1"
+          onClick={() => setSortBySize((v) => !v)}
+          title={sortBySize ? "当前：按大小排序，点击切换为文件名排序" : "当前：按文件名排序，点击切换为按 token 大小排序"}
+        >
+          <ArrowDownUp className="w-3 h-3" />
+          {sortBySize ? "大小" : "名称"}
+        </Button>
         <div className="flex items-center gap-0.5">
           <Button
             size="sm"
@@ -112,19 +130,29 @@ export function PreviewPanel() {
             {selectedFiles.map((path) => {
               const name = path.split("/").pop() ?? path;
               const isActive = path === activeFile;
+              const fileSize = fileSizeMap.get(path) ?? 0;
+              const fileTokens = bytesToTokens(fileSize);
+              const tokenLabel = fileTokens >= 1000
+                ? `${(fileTokens / 1000).toFixed(1)}K`
+                : `${fileTokens}`;
               return (
                 <button
                   key={path}
                   onClick={() => setActiveFile(path)}
                   title={path}
-                  className={`w-full text-left flex items-center gap-1.5 px-2 py-1 text-xs truncate transition-colors rounded-none ${
+                  className={`w-full text-left flex items-center gap-1 px-2 py-1 text-xs transition-colors rounded-none ${
                     isActive
                       ? "bg-primary/10 text-primary font-medium"
                       : "text-muted-foreground hover:bg-accent hover:text-foreground"
                   }`}
                 >
                   <FileText className="w-3 h-3 shrink-0" />
-                  <span className="truncate">{name}</span>
+                  <span className="truncate flex-1">{name}</span>
+                  {fileSize > 0 && (
+                    <span className="shrink-0 tabular-nums opacity-50 text-[10px]">
+                      {tokenLabel}
+                    </span>
+                  )}
                 </button>
               );
             })}

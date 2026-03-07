@@ -92,6 +92,28 @@ export function collectAllLeaves(node: FileNode): string[] {
   return node.children.flatMap(collectAllLeaves);
 }
 
+/** 返回所有已选文件的 { path, size } 列表，按 size 降序 */
+export function getSelectedFileSizes(
+  rootNodes: FileNode[],
+  selectedPaths: Set<string>
+): Array<{ path: string; size: number }> {
+  const result: Array<{ path: string; size: number }> = [];
+  function traverse(node: FileNode) {
+    if (!node.is_dir && selectedPaths.has(node.path)) {
+      result.push({ path: node.path, size: node.size });
+    }
+    node.children.forEach(traverse);
+  }
+  rootNodes.forEach(traverse);
+  result.sort((a, b) => b.size - a.size);
+  return result;
+}
+
+/** 字节数 → token 估算（÷4），返回数字 */
+export function bytesToTokens(bytes: number): number {
+  return Math.round(bytes / 4);
+}
+
 /** 根据文件扩展名返回 Tailwind 颜色类 */
 export function getFileColor(extension: string): string {
   const map: Record<string, string> = {

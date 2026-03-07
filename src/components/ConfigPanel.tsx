@@ -1,5 +1,28 @@
 import { useState, useEffect } from "react";
 import { X, RefreshCw, Plus, Save, Play, Trash2 } from "lucide-react";
+
+const REVIEW_TEMPLATES = [
+  {
+    label: "安全审查",
+    prefix: "请对以下代码进行安全审查，重点关注：SQL 注入、XSS、权限校验、敏感信息泄露、输入验证等安全问题，并给出修复建议。",
+  },
+  {
+    label: "性能优化",
+    prefix: "请对以下代码进行性能分析，找出潜在的性能瓶颈、不必要的重复计算、内存泄漏、N+1 查询等问题，并给出优化建议。",
+  },
+  {
+    label: "代码规范",
+    prefix: "请对以下代码进行代码规范审查，包括命名规范、函数职责单一性、代码重复、注释完整性、错误处理等，并给出改进建议。",
+  },
+  {
+    label: "架构审查",
+    prefix: "请对以下代码进行架构审查，评估模块划分是否合理、依赖关系是否清晰、可扩展性和可维护性如何，并给出架构层面的改进建议。",
+  },
+  {
+    label: "找 Bug",
+    prefix: "请仔细阅读以下代码，找出其中可能存在的 Bug、逻辑错误、边界条件处理不当或潜在的运行时异常，并说明复现条件和修复方法。",
+  },
+];
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -149,6 +172,27 @@ export function ConfigPanel() {
 
       <div className="space-y-3">
         <p className="text-sm font-medium">提示词模板</p>
+
+        {/* 审查类型快捷按钮 */}
+        <div className="space-y-1.5">
+          <p className="text-xs text-muted-foreground">快速填入审查类型</p>
+          <div className="flex flex-wrap gap-1.5">
+            {REVIEW_TEMPLATES.map((tpl) => (
+              <button
+                key={tpl.label}
+                onClick={() => {
+                  setPrefixLocal(tpl.prefix);
+                  updatePromptPrefix(tpl.prefix);
+                }}
+                title={tpl.prefix}
+                className="text-xs px-2 py-1 rounded-md border border-border bg-muted/40 hover:bg-accent hover:text-foreground text-muted-foreground transition-colors"
+              >
+                {tpl.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="space-y-1.5">
           <p className="text-xs text-muted-foreground">前缀（添加到输出最前面）</p>
           <Textarea

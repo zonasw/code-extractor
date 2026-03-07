@@ -1,5 +1,5 @@
 import { open } from "@tauri-apps/plugin-dialog";
-import { FolderPlus, Download, Loader2, Sun, Moon, Copy, Check, X, HelpCircle } from "lucide-react";
+import { FolderPlus, Download, Loader2, Sun, Moon, Copy, Check, X, HelpCircle, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 import { useTheme } from "next-themes";
@@ -9,7 +9,11 @@ import { useAppContext } from "@/context/AppContext";
 import { useDirectoryTree } from "@/hooks/useDirectoryTree";
 import { useExport } from "@/hooks/useExport";
 import { useAppConfig } from "@/hooks/useAppConfig";
-import { getTotalSelectedSize, formatTokenCount } from "@/lib/treeUtils";
+import { getTotalSelectedSize, formatTokenCount, getSelectedFileSizes, bytesToTokens } from "@/lib/treeUtils";
+
+// 参考上限：100 万 tokens
+const TOKEN_LIMIT = 1_000_000;
+const WARN_RATIO = 0.75; // 75% 开始变黄/红
 
 export function Toolbar() {
   const { state, dispatch } = useAppContext();
@@ -58,6 +62,26 @@ export function Toolbar() {
   const selectedCount = state.selectedPaths.size;
   const totalBytes = getTotalSelectedSize(state.rootNodes, state.selectedPaths);
   const tokenEstimate = formatTokenCount(totalBytes);
+  const totalTokens = bytesToTokens(totalBytes);
+  const tokenRatio = Math.min(totalTokens / TOKEN_LIMIT, 1);
+  const isOverWarn = tokenRatio >= WARN_RATIO;
+
+  // 进度条颜色
+  const barColor =
+    tokenRatio < 0.4 ? "bg-green-500" :
+    tokenRatio < WARN_RATIO ? "bg-yellow-400" :
+    "bg-red-500";
+
+  function handleRemoveLargest() {
+    const files = getSelectedFileSizes(state.rootNodes, state.selectedPaths);
+    if (files.length === 0) return;
+    const largest = files[0];
+    const next = new Set(state.selectedPaths);
+    next.delete(largest.path);
+    dispatch({ type: "SET_SELECTED_PATHS", payload: next });
+    const name = largest.path.split("/").pop() ?? largest.path;
+    toast.info(`已移除最大文件`, { description: `${name}（~${formatTokenCount(largest.size)} tokens）` });
+  }
 
   return (
     <div className="flex items-center gap-2 px-4 py-2.5 border-b bg-background shrink-0">
@@ -87,17 +111,47 @@ export function Toolbar() {
       </Select>
 
       {selectedCount > 0 && (
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/60 rounded-md px-2.5 py-1">
-          <span className="font-medium text-foreground">{selectedCount}</span>
-          <span>个文件</span>
+        <div
+          className="flex flex-col gap-0.5 bg-muted/60 rounded-md px-2.5 py-1 min-w-[130px]"
+          title={`${totalTokens.toLocaleString()} / ${TOKEN_LIMIT.toLocaleString()} tokens (${Math.round(tokenRatio * 100)}%)`}
+        >
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            {isOverWarn && (
+              <AlertTriangle className="w-3 h-3 text-red-500 shrink-0" />
+            )}
+            <span className="font-medium text-foreground">{selectedCount}</span>
+            <span>个文件</span>
+            {totalBytes > 0 && (
+              <>
+                <span className="opacity-40">·</span>
+                <span className={`font-medium ${isOverWarn ? "text-red-500" : "text-foreground"}`}>
+                  {tokenEstimate}
+                </span>
+                <span>tokens</span>
+              </>
+            )}
+          </div>
           {totalBytes > 0 && (
-            <>
-              <span className="opacity-40">·</span>
-              <span className="font-medium text-foreground">{tokenEstimate}</span>
-              <span>tokens</span>
-            </>
+            <div className="h-1 w-full bg-muted rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-300 ${barColor}`}
+                style={{ width: `${tokenRatio * 100}%` }}
+              />
+            </div>
           )}
         </div>
+      )}
+
+      {selectedCount > 0 && isOverWarn && (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleRemoveLargest}
+          className="h-7 px-2 text-xs text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-red-900 dark:hover:bg-red-950"
+          title="移除 token 占用最多的文件"
+        >
+          移除最大文件
+        </Button>
       )}
 
       {selectedCount > 0 && (

@@ -27,27 +27,27 @@ export function TreeNode({ node, depth = 0, forceExpand = false }: TreeNodeProps
 
   const isExpanded = forceExpand || expanded;
 
+  // 目录节点：一次性计算叶子节点，同时用于 checkState 和 dirCount
+  const dirLeaves = node.is_dir ? collectLeaves(node) : null;
+  const dirSelectedCount = dirLeaves
+    ? dirLeaves.filter((p) => state.selectedPaths.has(p)).length
+    : 0;
+
   function getCheckState(): CheckState {
     if (!node.is_dir) {
       return state.selectedPaths.has(node.path) ? "checked" : "unchecked";
     }
-    const leaves = collectLeaves(node);
-    if (leaves.length === 0) return "unchecked";
-    const selectedCount = leaves.filter((p) => state.selectedPaths.has(p)).length;
-    if (selectedCount === 0) return "unchecked";
-    if (selectedCount === leaves.length) return "checked";
+    if (!dirLeaves || dirLeaves.length === 0) return "unchecked";
+    if (dirSelectedCount === 0) return "unchecked";
+    if (dirSelectedCount === dirLeaves.length) return "checked";
     return "indeterminate";
   }
 
   const checkState = getCheckState();
 
-  // 目录：计算 selected/total
-  let dirCount: { selected: number; total: number } | null = null;
-  if (node.is_dir) {
-    const leaves = collectLeaves(node);
-    const selectedCount = leaves.filter((p) => state.selectedPaths.has(p)).length;
-    dirCount = { selected: selectedCount, total: leaves.length };
-  }
+  const dirCount = node.is_dir && dirLeaves
+    ? { selected: dirSelectedCount, total: dirLeaves.length }
+    : null;
 
   function handleCheck(e: React.MouseEvent) {
     e.stopPropagation();

@@ -4,7 +4,6 @@ import { useAppContext } from "@/context/AppContext";
 import { useDirectoryTree } from "@/hooks/useDirectoryTree";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { TreeNode } from "./TreeNode";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { filterTree, collectAllLeaves } from "@/lib/treeUtils";
 
 export function DirectoryTree() {
@@ -64,14 +63,14 @@ export function DirectoryTree() {
         </div>
       </div>
 
-      <ScrollArea className="flex-1">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
         <div className="py-1">
           {state.rootNodes.map((root) => {
             const filtered = filterTree(root, search);
             if (!filtered) return null;
             return (
               <div key={root.path}>
-                {/* 根目录标题栏 */}
+                {/* 根目录标题栏 — sticky 在原生滚动容器内正常工作 */}
                 <div className="flex items-center gap-1 px-2 py-1.5 bg-muted/50 border-b group sticky top-0 z-10">
                   <span
                     className="text-xs font-semibold text-muted-foreground truncate flex-1"
@@ -104,7 +103,7 @@ export function DirectoryTree() {
             );
           })}
         </div>
-      </ScrollArea>
+      </div>
     </div>
   );
 }

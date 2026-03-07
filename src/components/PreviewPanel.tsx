@@ -1,11 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Loader2, Copy, Check, FileText, AlertCircle } from "lucide-react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { Loader2, FileText, AlertCircle } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAppContext } from "@/context/AppContext";
-import { useExport } from "@/hooks/useExport";
 import { getLanguage } from "@/lib/treeUtils";
 import SyntaxHighlighter from "react-syntax-highlighter";
 import { atomOneDark, atomOneLight } from "react-syntax-highlighter/dist/esm/styles/hljs";
@@ -13,14 +10,13 @@ import { useTheme } from "next-themes";
 
 export function PreviewPanel() {
   const { state } = useAppContext();
-  const { generateAndCopy } = useExport();
   const { resolvedTheme } = useTheme();
-  const [copied, setCopied] = useState(false);
 
   // 当前在右侧展示的文件路径
   const [activeFile, setActiveFile] = useState<string | null>(null);
-  // 每个文件的内容缓存
-  const [fileCache, setFileCache] = useState<Map<string, string>>(new Map());
+  // 用 ref 存文件内容缓存，避免每次写入都触发重新渲染和 useCallback 重建
+  const fileCacheRef = useRef<Map<string, string>>(new Map());
+  const [, forceUpdate] = useState(0);
   const [loadingFile, setLoadingFile] = useState(false);
 
   const selectedFiles = Array.from(state.selectedPaths).sort();
@@ -35,40 +31,25 @@ export function PreviewPanel() {
     }
   }, [state.selectedPaths]);
 
-  // 加载文件内容
-  const loadFile = useCallback(
-    async (path: string) => {
-      if (fileCache.has(path)) return;
-      setLoadingFile(true);
-      try {
-        const content = await invoke<string>("read_file_content", { path });
-        setFileCache((prev) => new Map(prev).set(path, content));
-      } catch {
-        setFileCache((prev) => new Map(prev).set(path, "[无法读取文件内容]"));
-      } finally {
-        setLoadingFile(false);
-      }
-    },
-    [fileCache]
-  );
+  // 加载文件内容 — 依赖稳定，不会因 cache 变化而重建
+  const loadFile = useCallback(async (path: string) => {
+    if (fileCacheRef.current.has(path)) return;
+    setLoadingFile(true);
+    try {
+      const content = await invoke<string>("read_file_content", { path });
+      fileCacheRef.current.set(path, content);
+    } catch {
+      fileCacheRef.current.set(path, "[无法读取文件内容]");
+    } finally {
+      setLoadingFile(false);
+      forceUpdate((n) => n + 1); // 通知重新渲染以显示内容
+    }
+  }, []);
 
   // activeFile 变化时自动加载
   useEffect(() => {
     if (activeFile) loadFile(activeFile);
-  }, [activeFile]);
-
-  async function handleCopy() {
-    try {
-      const charCount = await generateAndCopy();
-      setCopied(true);
-      toast.success("已复制到剪贴板", {
-        description: `${charCount.toLocaleString()} 个字符`,
-      });
-      setTimeout(() => setCopied(false), 2000);
-    } catch (e) {
-      toast.error("复制失败", { description: String(e) });
-    }
-  }
+  }, [activeFile, loadFile]);
 
   if (selectedFiles.length === 0) {
     return (
@@ -79,33 +60,19 @@ export function PreviewPanel() {
     );
   }
 
-  const activeContent = activeFile ? fileCache.get(activeFile) : undefined;
+  const activeContent = activeFile ? fileCacheRef.current.get(activeFile) : undefined;
   const activeFileName = activeFile?.split("/").pop() ?? "";
   const activeLang = activeFile ? getLanguage(activeFileName) : "text";
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* 顶部操作栏 */}
+      {/* 顶部状态栏 */}
       <div className="flex items-center gap-2 px-3 py-2 border-b shrink-0">
         <span className="text-xs text-muted-foreground">
-          {selectedFiles.length} 个文件
+          {selectedFiles.length} 个文件已选中，点击左侧文件预览内容
         </span>
         <div className="flex-1" />
         {state.isLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={handleCopy}
-          disabled={state.isLoading}
-          className="h-7 text-xs"
-        >
-          {copied ? (
-            <Check className="w-3.5 h-3.5 mr-1 text-green-500" />
-          ) : (
-            <Copy className="w-3.5 h-3.5 mr-1" />
-          )}
-          {copied ? "已复制全部" : "复制全部"}
-        </Button>
       </div>
 
       {/* 主体：左侧文件列表 + 右侧内容 */}

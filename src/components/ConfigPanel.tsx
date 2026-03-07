@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X, RefreshCw, Plus, Save, Play, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,15 @@ export function ConfigPanel() {
   const [prefixLocal, setPrefixLocal] = useState(state.config.prompt_prefix);
   const [suffixLocal, setSuffixLocal] = useState(state.config.prompt_suffix);
   const [newPresetName, setNewPresetName] = useState("");
+
+  // 异步加载 config 后同步本地 state（仅在非编辑状态下更新）
+  useEffect(() => {
+    setPrefixLocal(state.config.prompt_prefix);
+  }, [state.config.prompt_prefix]);
+
+  useEffect(() => {
+    setSuffixLocal(state.config.prompt_suffix);
+  }, [state.config.prompt_suffix]);
 
   function addIgnore() {
     const v = newIgnore.trim();

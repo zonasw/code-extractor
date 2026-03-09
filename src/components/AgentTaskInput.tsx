@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAgentContext } from "@/context/AgentContext";
-import { AgentPermissionMode } from "@/types/agent";
+import { AgentPermissionMode, PROVIDER_MODELS } from "@/types/agent";
 import { useAppContext } from "@/context/AppContext";
 
 interface AgentTaskInputProps {
@@ -18,17 +18,11 @@ interface AgentTaskInputProps {
   isRunning: boolean;
 }
 
-const MODELS = [
-  { value: "claude-sonnet-4-6", label: "Sonnet 4.6" },
-  { value: "claude-opus-4-6", label: "Opus 4.6" },
-  { value: "claude-haiku-4-5-20251001", label: "Haiku 4.5" },
-];
-
-const PERMISSION_MODES: { value: AgentPermissionMode; label: string }[] = [
-  { value: "acceptEdits", label: "接受编辑" },
-  { value: "bypassPermissions", label: "跳过权限" },
-  { value: "default", label: "默认" },
-  { value: "plan", label: "仅规划" },
+const PERMISSION_MODES: { value: AgentPermissionMode; label: string; title: string }[] = [
+  { value: "acceptEdits",       label: "接受编辑", title: "自动接受所有文件修改" },
+  { value: "bypassPermissions", label: "跳过权限", title: "绕过所有权限检查（危险）" },
+  { value: "default",           label: "默认",     title: "使用 claude CLI 默认权限" },
+  { value: "plan",              label: "仅规划",   title: "只生成计划，不执行操作" },
 ];
 
 export function AgentTaskInput({ onStart, onStop, isRunning }: AgentTaskInputProps) {
@@ -41,6 +35,12 @@ export function AgentTaskInput({ onStart, onStop, isRunning }: AgentTaskInputPro
 
   const { config } = agentState;
   const selectedCount = appState.selectedPaths.size;
+  const models = PROVIDER_MODELS[config.provider] ?? PROVIDER_MODELS.anthropic;
+
+  // If current model not in new provider's list, reset to first option
+  const modelValue = models.some((m) => m.value === config.model)
+    ? config.model
+    : models[0].value;
 
   async function handleStart() {
     const trimmed = task.trim();
@@ -60,16 +60,14 @@ export function AgentTaskInput({ onStart, onStop, isRunning }: AgentTaskInputPro
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
       e.preventDefault();
-      if (!isRunning) {
-        handleStart();
-      }
+      if (!isRunning) handleStart();
     }
   }
 
   return (
     <div className="flex flex-col gap-2 p-3 border-t">
       {error && (
-        <div className="text-xs text-red-500 bg-red-50 dark:bg-red-950/30 rounded px-2 py-1">
+        <div className="text-xs text-red-500 bg-red-50 dark:bg-red-950/30 rounded px-2 py-1.5 leading-relaxed">
           {error}
         </div>
       )}
@@ -79,23 +77,27 @@ export function AgentTaskInput({ onStart, onStop, isRunning }: AgentTaskInputPro
         value={task}
         onChange={(e) => setTask(e.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder={`描述任务... (Ctrl+Enter 运行)${selectedCount > 0 ? `\n已选 ${selectedCount} 个文件作为上下文` : ""}`}
-        className="min-h-[72px] max-h-[200px] resize-none text-sm"
+        placeholder={
+          selectedCount > 0
+            ? `描述任务... (⌘+Enter 运行)\n已选 ${selectedCount} 个文件作为上下文`
+            : "描述任务... (⌘+Enter 运行)"
+        }
+        className="min-h-[72px] max-h-[180px] resize-none text-sm"
         disabled={isRunning || isLoading}
       />
 
-      <div className="flex items-center gap-2 flex-wrap">
-        {/* Model */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {/* 模型选择，随 provider 变化 */}
         <Select
-          value={config.model}
+          value={modelValue}
           onValueChange={(v) => dispatch({ type: "SET_CONFIG", payload: { model: v } })}
           disabled={isRunning}
         >
-          <SelectTrigger className="h-7 text-xs w-36">
+          <SelectTrigger className="h-7 text-xs w-40 shrink-0">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {MODELS.map((m) => (
+            {models.map((m) => (
               <SelectItem key={m.value} value={m.value} className="text-xs">
                 {m.label}
               </SelectItem>
@@ -103,7 +105,7 @@ export function AgentTaskInput({ onStart, onStop, isRunning }: AgentTaskInputPro
           </SelectContent>
         </Select>
 
-        {/* Permission mode */}
+        {/* 权限模式 */}
         <Select
           value={config.permissionMode}
           onValueChange={(v) =>
@@ -111,21 +113,21 @@ export function AgentTaskInput({ onStart, onStop, isRunning }: AgentTaskInputPro
           }
           disabled={isRunning}
         >
-          <SelectTrigger className="h-7 text-xs w-28">
+          <SelectTrigger className="h-7 text-xs w-24 shrink-0">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {PERMISSION_MODES.map((m) => (
-              <SelectItem key={m.value} value={m.value} className="text-xs">
+              <SelectItem key={m.value} value={m.value} className="text-xs" title={m.title}>
                 {m.label}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
 
-        {/* Context mode toggle */}
+        {/* 上下文模式切换 */}
         <button
-          className={`text-xs px-2 py-1 rounded border transition-colors ${
+          className={`text-xs px-2 py-1 rounded border transition-colors shrink-0 ${
             config.inlineContext
               ? "bg-primary/10 border-primary/30 text-primary"
               : "border-border text-muted-foreground hover:text-foreground"
@@ -134,20 +136,19 @@ export function AgentTaskInput({ onStart, onStop, isRunning }: AgentTaskInputPro
             dispatch({ type: "SET_CONFIG", payload: { inlineContext: !config.inlineContext } })
           }
           disabled={isRunning}
-          title={config.inlineContext ? "内联模式：文件内容嵌入 prompt" : "目录模式：Claude 自主读取文件"}
+          title={
+            config.inlineContext
+              ? "内联模式：将选中文件内容直接嵌入 prompt"
+              : "目录模式：让 Claude 用工具自主读取项目文件"
+          }
         >
           {config.inlineContext ? "内联" : "目录"}
         </button>
 
-        {/* Run / Stop */}
+        {/* 运行 / 停止 */}
         <div className="ml-auto">
           {isRunning ? (
-            <Button
-              variant="destructive"
-              size="sm"
-              className="h-7 text-xs"
-              onClick={onStop}
-            >
+            <Button variant="destructive" size="sm" className="h-7 text-xs" onClick={onStop}>
               ■ 停止
             </Button>
           ) : (

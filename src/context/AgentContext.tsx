@@ -6,6 +6,7 @@ import {
   FileChange,
   AgentConfig,
   AgentPermissionMode,
+  type AgentProvider,
 } from "@/types/agent";
 
 // ---------------------------------------------------------------------------
@@ -34,6 +35,7 @@ export type AgentAction =
 // ---------------------------------------------------------------------------
 
 const defaultConfig: AgentConfig = {
+  provider: "anthropic" as AgentProvider,
   model: "claude-sonnet-4-6",
   permissionMode: "acceptEdits" as AgentPermissionMode,
   inlineContext: true,

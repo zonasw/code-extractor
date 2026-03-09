@@ -5,7 +5,7 @@ import { AgentConfig } from "@/types/agent";
 // Fields we persist (excludes runtime-only fields)
 type PersistedAgentConfig = Pick<
   AgentConfig,
-  "model" | "permissionMode" | "inlineContext" | "apiKey" | "baseUrl" | "claudeCliPath" | "timeoutSeconds"
+  "provider" | "model" | "permissionMode" | "inlineContext" | "apiKey" | "baseUrl" | "claudeCliPath" | "timeoutSeconds"
 >;
 
 export function useAgentConfig() {
@@ -25,6 +25,7 @@ export function useAgentConfig() {
 
   async function saveAgentConfig(config: AgentConfig) {
     const persisted: PersistedAgentConfig = {
+      provider: config.provider,
       model: config.model,
       permissionMode: config.permissionMode,
       inlineContext: config.inlineContext,

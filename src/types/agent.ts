@@ -65,7 +65,33 @@ export interface AgentSession {
   costUsd?: number;
 }
 
+export type AgentProvider = "anthropic" | "openrouter" | "custom";
+
+export const PROVIDER_MODELS: Record<AgentProvider, { value: string; label: string }[]> = {
+  anthropic: [
+    { value: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
+    { value: "claude-opus-4-6", label: "Claude Opus 4.6" },
+    { value: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5" },
+  ],
+  openrouter: [
+    { value: "anthropic/claude-sonnet-4-5", label: "Claude Sonnet 4.5" },
+    { value: "anthropic/claude-opus-4-5", label: "Claude Opus 4.5" },
+    { value: "anthropic/claude-haiku-4-5", label: "Claude Haiku 4.5" },
+  ],
+  custom: [
+    { value: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
+    { value: "claude-opus-4-6", label: "Claude Opus 4.6" },
+  ],
+};
+
+export const PROVIDER_DEFAULT_BASE_URL: Record<AgentProvider, string> = {
+  anthropic: "",
+  openrouter: "https://openrouter.ai/api/v1",
+  custom: "",
+};
+
 export interface AgentConfig {
+  provider: AgentProvider;
   model: string;
   permissionMode: AgentPermissionMode;
   allowedTools?: string[];

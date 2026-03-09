@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { X, RefreshCw, Plus, Save, Play, Trash2 } from "lucide-react";
+import { X, RefreshCw, Plus, Save, Play, Trash2, Eye, EyeOff } from "lucide-react";
 
 const REVIEW_TEMPLATES = [
   {
@@ -29,15 +29,18 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { useAppContext } from "@/context/AppContext";
+import { useAgentContext } from "@/context/AgentContext";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useDirectoryTree } from "@/hooks/useDirectoryTree";
 import { usePresets } from "@/hooks/usePresets";
 
 export function ConfigPanel() {
   const { state } = useAppContext();
+  const { state: agentState, dispatch: agentDispatch } = useAgentContext();
   const { updateIgnoreList, updateExtensionFilter, updatePromptPrefix, updatePromptSuffix } = useAppConfig();
   const { refreshDirectory } = useDirectoryTree();
   const { presets, saveCurrentAsPreset, loadPreset, deletePreset } = usePresets();
+  const [showApiKey, setShowApiKey] = useState(false);
 
   async function refreshAll() {
     await Promise.allSettled(
@@ -262,6 +265,54 @@ export function ConfigPanel() {
               </button>
             </div>
           ))}
+        </div>
+      </div>
+
+      <Separator />
+
+      <div className="space-y-3">
+        <p className="text-sm font-medium">Agent 配置</p>
+
+        <div className="space-y-1.5">
+          <p className="text-xs text-muted-foreground">
+            API Key
+            <span className="ml-1 text-muted-foreground/60">（留空则使用环境变量 ANTHROPIC_API_KEY）</span>
+          </p>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Input
+                type={showApiKey ? "text" : "password"}
+                value={agentState.config.apiKey ?? ""}
+                onChange={(e) =>
+                  agentDispatch({ type: "SET_CONFIG", payload: { apiKey: e.target.value } })
+                }
+                placeholder="sk-ant-..."
+                className="h-7 text-sm pr-8 font-mono"
+              />
+              <button
+                type="button"
+                onClick={() => setShowApiKey((v) => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showApiKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <p className="text-xs text-muted-foreground">
+            Base URL
+            <span className="ml-1 text-muted-foreground/60">（留空则使用默认 Anthropic API）</span>
+          </p>
+          <Input
+            value={agentState.config.baseUrl ?? ""}
+            onChange={(e) =>
+              agentDispatch({ type: "SET_CONFIG", payload: { baseUrl: e.target.value } })
+            }
+            placeholder="https://api.anthropic.com"
+            className="h-7 text-sm font-mono"
+          />
         </div>
       </div>
     </div>

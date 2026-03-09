@@ -2,14 +2,18 @@ import { useEffect, useCallback, useRef } from "react";
 import { Panel, Group, Separator } from "react-resizable-panels";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AppProvider, useAppContext } from "@/context/AppContext";
+import { AgentProvider } from "@/context/AgentContext";
 import { Toolbar } from "@/components/Toolbar";
 import { DirectoryTree } from "@/components/DirectoryTree";
 import { ConfigPanel } from "@/components/ConfigPanel";
 import { PreviewPanel } from "@/components/PreviewPanel";
+import { AgentPanel } from "@/components/AgentPanel";
 import { ShortcutHelpModal } from "@/components/ShortcutHelpModal";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useDirectoryTree } from "@/hooks/useDirectoryTree";
 import { useExport } from "@/hooks/useExport";
+import { useAgent } from "@/hooks/useAgent";
+import { useAgentConfig } from "@/hooks/useAgentConfig";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "next-themes";
 import { toast } from "sonner";
@@ -20,6 +24,8 @@ function AppContent() {
   const { loadConfig, loadSelectedPaths, saveSelectedPaths } = useAppConfig();
   const { addDirectory, refreshDirectory } = useDirectoryTree();
   const { generateAndCopy, exportFiles } = useExport();
+  const { isRunning, agentState } = useAgent();
+  const { loadAgentConfig, saveAgentConfig } = useAgentConfig();
 
   const prevIgnoreRef = useRef<string>("");
   const prevExtRef = useRef<string>("");
@@ -29,7 +35,10 @@ function AppContent() {
 
   useEffect(() => {
     async function init() {
-      const config = await loadConfig();
+      const [config] = await Promise.all([
+        loadConfig(),
+        loadAgentConfig(),
+      ]);
       prevIgnoreRef.current = JSON.stringify(config.ignore_list);
       prevExtRef.current = JSON.stringify(config.extension_filter);
       // Load saved paths before directories load
@@ -42,6 +51,19 @@ function AppContent() {
     init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Auto-save agent config on change (debounced)
+  const agentConfigSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (agentConfigSaveRef.current) clearTimeout(agentConfigSaveRef.current);
+    agentConfigSaveRef.current = setTimeout(() => {
+      saveAgentConfig(agentState.config);
+    }, 800);
+    return () => {
+      if (agentConfigSaveRef.current) clearTimeout(agentConfigSaveRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentState.config]);
 
   // Restore selected paths once rootNodes are populated
   useEffect(() => {
@@ -169,12 +191,21 @@ function AppContent() {
                   )}
                 </TabsTrigger>
                 <TabsTrigger value="config">配置</TabsTrigger>
+                <TabsTrigger value="agent">
+                  Agent
+                  {isRunning && (
+                    <span className="ml-1.5 w-2 h-2 rounded-full bg-green-500 animate-pulse inline-block" />
+                  )}
+                </TabsTrigger>
               </TabsList>
               <TabsContent value="preview" className="flex-1 overflow-hidden m-0 mt-2">
                 <PreviewPanel />
               </TabsContent>
               <TabsContent value="config" className="flex-1 overflow-hidden m-0 mt-2">
                 <ConfigPanel />
+              </TabsContent>
+              <TabsContent value="agent" className="flex-1 overflow-hidden m-0 mt-2">
+                <AgentPanel />
               </TabsContent>
             </Tabs>
           </Panel>
@@ -192,8 +223,10 @@ export default function App() {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <AppProvider>
-        <AppContent />
-        <Toaster position="bottom-right" richColors />
+        <AgentProvider>
+          <AppContent />
+          <Toaster position="bottom-right" richColors />
+        </AgentProvider>
       </AppProvider>
     </ThemeProvider>
   );

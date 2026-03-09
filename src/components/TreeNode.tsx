@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { toast } from "sonner";
 import { ChevronRight, ChevronDown, File, Folder, FolderOpen, AlertTriangle } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -111,14 +112,14 @@ export function TreeNode({ node, depth = 0, forceExpand = false, expandStamp }: 
   }
 
   async function handleCopyPath() {
-    await navigator.clipboard.writeText(node.path);
+    await writeText(node.path);
     toast.success("路径已复制");
   }
 
   async function handleCopyContent() {
     try {
       const content = await invoke<string>("read_file_content", { path: node.path });
-      await navigator.clipboard.writeText(content);
+      await writeText(content);
       toast.success("文件内容已复制");
     } catch {
       toast.error("读取文件失败");

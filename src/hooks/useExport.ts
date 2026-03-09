@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { save } from "@tauri-apps/plugin-dialog";
 import { useAppContext } from "@/context/AppContext";
 import { FileNode, OutputFormat } from "@/types";
@@ -113,7 +114,7 @@ export function useExport() {
     dispatch({ type: "SET_LOADING", payload: true });
     try {
       const content = await buildContent(groups);
-      await navigator.clipboard.writeText(content);
+      await writeText(content);
       dispatch({ type: "SET_PREVIEW_CONTENT", payload: content });
       return content.length;
     } finally {

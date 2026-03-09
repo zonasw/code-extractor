@@ -16,6 +16,7 @@ pub struct AgentStartParams {
     pub inline_context: bool, // true = inline files in prompt, false = use --add-dir
     pub api_key: Option<String>,
     pub base_url: Option<String>,
+    pub resume_session_id: Option<String>, // if set, pass --resume to continue a prior session
 }
 
 /// Events emitted to the frontend via app.emit("agent:event", ...)

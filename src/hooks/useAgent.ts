@@ -191,10 +191,10 @@ export function useAgent() {
   }
 
   // ---------------------------------------------------------------------------
-  // Start agent
+  // Start agent (new session or continuation)
   // ---------------------------------------------------------------------------
   const startAgent = useCallback(
-    async (task: string) => {
+    async (task: string, resumeFromSessionId?: string) => {
       const contextPaths = Array.from(appState.selectedPaths);
       const workingDirectory =
         appState.rootNodes.length > 0 ? appState.rootNodes[0].path : ".";
@@ -243,6 +243,7 @@ export function useAgent() {
         gitBranch: gitInfo.branch ?? undefined,
         hasUncommittedChanges: gitInfo.has_uncommitted_changes,
         uncommittedCount: gitInfo.uncommitted_count,
+        resumeSessionId: resumeFromSessionId,
       };
       dispatch({ type: "START_SESSION", payload: session });
 
@@ -263,6 +264,7 @@ export function useAgent() {
           inline_context: config.inlineContext,
           api_key: config.apiKey ?? null,
           base_url: config.baseUrl ?? null,
+          resume_session_id: resumeFromSessionId ?? null,
         },
       });
     },
@@ -310,6 +312,16 @@ export function useAgent() {
 
   const isRunning = activeSession?.status === "running";
 
+  // ---------------------------------------------------------------------------
+  // Continue an existing session
+  // ---------------------------------------------------------------------------
+  const continueSession = useCallback(
+    async (prevSession: AgentSession, task: string) => {
+      await startAgent(task, prevSession.id);
+    },
+    [startAgent]
+  );
+
   return {
     agentState,
     dispatch,
@@ -318,5 +330,6 @@ export function useAgent() {
     startAgent,
     stopAgent,
     revertChanges,
+    continueSession,
   };
 }

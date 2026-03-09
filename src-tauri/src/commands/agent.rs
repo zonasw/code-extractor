@@ -218,6 +218,14 @@ pub async fn start_claude_agent(
         args.push(model.clone());
     }
 
+    // Multi-turn: resume a previous session
+    if let Some(prev_sid) = &params.resume_session_id {
+        if !prev_sid.is_empty() {
+            args.push("--resume".to_string());
+            args.push(prev_sid.clone());
+        }
+    }
+
     if !params.inline_context {
         args.push("--add-dir".to_string());
         args.push(params.working_directory.clone());

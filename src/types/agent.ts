@@ -63,11 +63,22 @@ export interface AgentSession {
   permissionMode: AgentPermissionMode;
   numTurns?: number;
   costUsd?: number;
+  // multi-turn: id of the session this one resumes
+  resumeSessionId?: string;
   // git integration
   isGitRepo: boolean;
   gitBranch?: string;
   hasUncommittedChanges?: boolean;
   uncommittedCount?: number;
+}
+
+// Skills / Claude commands (~/.claude/commands/*.md)
+export interface Skill {
+  name: string;
+  description: string;
+  content: string;
+  path: string;
+  isProject: boolean;
 }
 
 export interface GitRepoInfo {

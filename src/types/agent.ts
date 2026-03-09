@@ -63,6 +63,26 @@ export interface AgentSession {
   permissionMode: AgentPermissionMode;
   numTurns?: number;
   costUsd?: number;
+  // git integration
+  isGitRepo: boolean;
+  gitBranch?: string;
+  hasUncommittedChanges?: boolean;
+  uncommittedCount?: number;
+}
+
+export interface GitRepoInfo {
+  is_git_repo: boolean;
+  branch: string | null;
+  has_uncommitted_changes: boolean;
+  uncommitted_count: number;
+}
+
+export interface GitFileDiff {
+  path: string;
+  change_type: FileChangeType;
+  diff: string;
+  additions: number;
+  deletions: number;
 }
 
 export type AgentProvider = "anthropic" | "openrouter" | "custom";

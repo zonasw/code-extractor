@@ -3,12 +3,19 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useAgentContext } from "@/context/AgentContext";
 import { useAppContext } from "@/context/AppContext";
-import type { AgentEventKind, FileSnapshot, FileDiffResult, AgentSession } from "@/types/agent";
+import type {
+  AgentEventKind,
+  FileSnapshot,
+  FileDiffResult,
+  AgentSession,
+  GitRepoInfo,
+  GitFileDiff,
+} from "@/types/agent";
 
 export function useAgent() {
   const { state: agentState, dispatch } = useAgentContext();
   const { state: appState } = useAppContext();
-  // Map: sessionId -> snapshot taken before agent ran
+  // Map: sessionId -> snapshot taken before agent ran (fallback for non-git)
   const snapshotRef = useRef<Record<string, FileSnapshot[]>>({});
   // requestAnimationFrame batch for text deltas
   const pendingDeltaRef = useRef<Record<string, string>>({});
@@ -19,10 +26,8 @@ export function useAgent() {
   // ---------------------------------------------------------------------------
   useEffect(() => {
     const unlistenPromise = listen<AgentEventKind>("agent:event", (event) => {
-      const payload = event.payload;
-      handleAgentEvent(payload);
+      handleAgentEvent(event.payload);
     });
-
     return () => {
       unlistenPromise.then((fn) => fn());
     };
@@ -43,7 +48,6 @@ export function useAgent() {
   function handleAgentEvent(payload: AgentEventKind) {
     switch (payload.kind) {
       case "text_delta": {
-        // Batch text deltas via rAF to avoid per-char re-renders
         const sid = payload.session_id;
         pendingDeltaRef.current[sid] = (pendingDeltaRef.current[sid] ?? "") + payload.text;
         if (!rafRef.current) {
@@ -89,7 +93,6 @@ export function useAgent() {
           type: "SET_SESSION_STATUS",
           payload: { sessionId: payload.session_id, status: payload.status },
         });
-        // When completed, compute diffs
         if (payload.status === "completed") {
           computeDiff(payload.session_id);
         }
@@ -128,37 +131,62 @@ export function useAgent() {
   }
 
   // ---------------------------------------------------------------------------
-  // Compute diff after agent completes
+  // Compute diff — git-based when available, snapshot fallback otherwise
   // ---------------------------------------------------------------------------
   async function computeDiff(sessionId: string) {
-    const snapshot = snapshotRef.current[sessionId];
-    if (!snapshot) return;
+    // Need to read from the ref on the sessions map
     const session = agentState.sessions[sessionId];
-    const extraPaths = session?.contextPaths ?? [];
+    if (!session) return;
+
     try {
-      const diffs = await invoke<FileDiffResult[]>("get_file_diff", {
-        snapshot,
-        paths: extraPaths,
-      });
-      if (diffs.length > 0) {
-        dispatch({
-          type: "ADD_FILE_CHANGES",
-          payload: {
-            sessionId,
-            changes: diffs.map((d) => ({
-              path: d.path,
-              changeType: d.change_type,
-              unifiedDiff: d.unified_diff,
-              additions: d.additions,
-              deletions: d.deletions,
-              oldContent: d.old_content ?? undefined,
-              newContent: d.new_content ?? undefined,
-            })),
-          },
+      if (session.isGitRepo) {
+        // Use git diff HEAD — captures everything the agent changed
+        const diffs = await invoke<GitFileDiff[]>("git_get_diff", {
+          workingDir: session.workingDirectory,
         });
+        if (diffs.length > 0) {
+          dispatch({
+            type: "ADD_FILE_CHANGES",
+            payload: {
+              sessionId,
+              changes: diffs.map((d) => ({
+                path: d.path,
+                changeType: d.change_type,
+                unifiedDiff: d.diff,
+                additions: d.additions,
+                deletions: d.deletions,
+              })),
+            },
+          });
+        }
+      } else {
+        // Fallback: snapshot-based diff
+        const snapshot = snapshotRef.current[sessionId];
+        if (!snapshot) return;
+        const diffs = await invoke<FileDiffResult[]>("get_file_diff", {
+          snapshot,
+          paths: session.contextPaths,
+        });
+        if (diffs.length > 0) {
+          dispatch({
+            type: "ADD_FILE_CHANGES",
+            payload: {
+              sessionId,
+              changes: diffs.map((d) => ({
+                path: d.path,
+                changeType: d.change_type,
+                unifiedDiff: d.unified_diff,
+                additions: d.additions,
+                deletions: d.deletions,
+                oldContent: d.old_content ?? undefined,
+                newContent: d.new_content ?? undefined,
+              })),
+            },
+          });
+        }
       }
     } catch (e) {
-      console.error("get_file_diff failed:", e);
+      console.error("computeDiff failed:", e);
     }
   }
 
@@ -180,17 +208,19 @@ export function useAgent() {
         try {
           claudeCliPath = await invoke<string>("find_claude_cli");
         } catch (e) {
-          throw new Error(`Could not find claude CLI: ${e}`);
+          throw new Error(`找不到 claude CLI: ${e}`);
         }
       }
 
-      // Take snapshot of all context files
-      const snapshot = await invoke<FileSnapshot[]>("take_file_snapshot", {
-        paths: contextPaths,
-      });
+      // Check git repo (parallel with snapshot)
+      const [gitInfo, snapshot] = await Promise.all([
+        invoke<GitRepoInfo>("check_git_repo", { path: workingDirectory }),
+        invoke<FileSnapshot[]>("take_file_snapshot", { paths: contextPaths }),
+      ]);
+
       snapshotRef.current[sessionId] = snapshot;
 
-      // Create session in state
+      // Build session
       const session: AgentSession = {
         id: sessionId,
         task,
@@ -209,6 +239,10 @@ export function useAgent() {
         ],
         fileChanges: [],
         permissionMode: config.permissionMode,
+        isGitRepo: gitInfo.is_git_repo,
+        gitBranch: gitInfo.branch ?? undefined,
+        hasUncommittedChanges: gitInfo.has_uncommitted_changes,
+        uncommittedCount: gitInfo.uncommitted_count,
       };
       dispatch({ type: "START_SESSION", payload: session });
 
@@ -238,33 +272,37 @@ export function useAgent() {
   // ---------------------------------------------------------------------------
   // Stop agent
   // ---------------------------------------------------------------------------
-  const stopAgent = useCallback(
+  const stopAgent = useCallback(async (sessionId: string) => {
+    try {
+      await invoke("stop_claude_agent", { sessionId });
+    } catch (e) {
+      console.error("stop_claude_agent failed:", e);
+    }
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Revert — git when available, snapshot otherwise
+  // ---------------------------------------------------------------------------
+  const revertChanges = useCallback(
     async (sessionId: string) => {
-      try {
-        await invoke("stop_claude_agent", { sessionId });
-      } catch (e) {
-        console.error("stop_claude_agent failed:", e);
+      const session = agentState.sessions[sessionId];
+      if (!session) return;
+
+      if (session.isGitRepo) {
+        await invoke("git_revert_all", { workingDir: session.workingDirectory });
+      } else {
+        const snapshot = snapshotRef.current[sessionId];
+        if (!snapshot) return;
+        await invoke("revert_agent_changes", { snapshot });
       }
+
+      dispatch({ type: "ADD_FILE_CHANGES", payload: { sessionId, changes: [] } });
     },
-    []
+    [agentState.sessions, dispatch]
   );
 
   // ---------------------------------------------------------------------------
-  // Revert changes
-  // ---------------------------------------------------------------------------
-  const revertChanges = useCallback(async (sessionId: string) => {
-    const snapshot = snapshotRef.current[sessionId];
-    if (!snapshot) return;
-    await invoke("revert_agent_changes", { snapshot });
-    // Clear file changes in state
-    dispatch({
-      type: "ADD_FILE_CHANGES",
-      payload: { sessionId, changes: [] },
-    });
-  }, [dispatch]);
-
-  // ---------------------------------------------------------------------------
-  // Expose active session helpers
+  // Expose
   // ---------------------------------------------------------------------------
   const activeSession = agentState.activeSessionId
     ? agentState.sessions[agentState.activeSessionId]

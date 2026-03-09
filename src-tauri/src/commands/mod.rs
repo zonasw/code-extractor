@@ -2,6 +2,7 @@ pub mod directory;
 pub mod export;
 pub mod config;
 pub mod agent;
+pub mod git;
 
 pub use directory::{read_directory, read_file_content};
 pub use export::write_text_file;
@@ -15,3 +16,4 @@ pub use agent::{
     start_claude_agent,
     stop_claude_agent,
 };
+pub use git::{check_git_repo, git_get_diff, git_revert_all};

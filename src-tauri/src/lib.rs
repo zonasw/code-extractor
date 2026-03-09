@@ -9,6 +9,7 @@ use commands::{
     get_agent_config, save_agent_config,
     find_claude_cli, take_file_snapshot, get_file_diff,
     revert_agent_changes, start_claude_agent, stop_claude_agent,
+    check_git_repo, git_get_diff, git_revert_all,
     AgentProcessRegistry,
 };
 
@@ -39,6 +40,9 @@ pub fn run() {
             revert_agent_changes,
             start_claude_agent,
             stop_claude_agent,
+            check_git_repo,
+            git_get_diff,
+            git_revert_all,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

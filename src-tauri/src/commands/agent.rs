@@ -204,6 +204,7 @@ pub async fn start_claude_agent(
     // Build command arguments
     let mut args: Vec<String> = vec![
         "--print".to_string(),
+        "--verbose".to_string(),
         "--output-format".to_string(),
         "stream-json".to_string(),
         "--include-partial-messages".to_string(),
@@ -214,8 +215,10 @@ pub async fn start_claude_agent(
     ];
 
     if let Some(model) = &params.model {
-        args.push("--model".to_string());
-        args.push(model.clone());
+        if !model.is_empty() {
+            args.push("--model".to_string());
+            args.push(model.clone());
+        }
     }
 
     // Multi-turn: resume a previous session
@@ -398,14 +401,26 @@ async fn process_agent_output(
     app: tauri::AppHandle,
     session_id: String,
     stdout: tokio::process::ChildStdout,
-    _stderr: tokio::process::ChildStderr,
+    stderr: tokio::process::ChildStderr,
 ) -> Result<(), String> {
+    // Collect stderr in background so it doesn't block the process
+    let stderr_task = tokio::spawn(async move {
+        let mut lines = BufReader::new(stderr).lines();
+        let mut buf = String::new();
+        while let Ok(Some(line)) = lines.next_line().await {
+            buf.push_str(&line);
+            buf.push('\n');
+        }
+        buf
+    });
+
     let mut reader = BufReader::new(stdout).lines();
     let mut num_turns: u32 = 0;
     #[allow(unused_assignments)]
     let mut cost_usd: Option<f64> = None;
     // Track partial text accumulation per assistant turn
     let mut current_text = String::new();
+    let mut got_result = false;
 
     while let Ok(Some(line)) = reader.next_line().await {
         let line = line.trim().to_string();
@@ -526,6 +541,7 @@ async fn process_agent_output(
             "result" => {
                 match subtype {
                     "success" => {
+                        got_result = true;
                         cost_usd = json
                             .get("cost_usd")
                             .and_then(|v| v.as_f64());
@@ -549,6 +565,7 @@ async fn process_agent_output(
                         );
                     }
                     "error_during_execution" | "error" => {
+                        got_result = true;
                         let msg = json
                             .get("error")
                             .and_then(|v| v.as_str())
@@ -574,6 +591,17 @@ async fn process_agent_output(
             }
             _ => {}
         }
+    }
+
+    // If the process exited without emitting a result event, surface any stderr as an error
+    if !got_result {
+        let stderr_output = stderr_task.await.unwrap_or_default();
+        let msg = if stderr_output.trim().is_empty() {
+            "Agent process exited without output".to_string()
+        } else {
+            stderr_output.trim().to_string()
+        };
+        return Err(msg);
     }
 
     Ok(())

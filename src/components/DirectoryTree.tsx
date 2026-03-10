@@ -16,6 +16,20 @@ export function DirectoryTree() {
   const [expandStamp, setExpandStamp] = useState<ExpandStamp | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
+  const isGlob = isGlobPattern(search);
+  const globRegex = useMemo(
+    () => (isGlob && search.trim() ? globToRegex(search) : null),
+    [isGlob, search]
+  );
+  const filteredRoots = useMemo(() => {
+    return state.rootNodes.map((root) => ({
+      root,
+      filtered: isGlob && globRegex
+        ? filterTreeByGlob(root, globRegex)
+        : filterTree(root, search),
+    }));
+  }, [state.rootNodes, isGlob, globRegex, search]);
+
   // Drag & drop: listen for Tauri window drag events
   useEffect(() => {
     let unlisten: (() => void) | null = null;
@@ -116,22 +130,6 @@ export function DirectoryTree() {
       </div>
     );
   }
-
-  const isGlob = isGlobPattern(search);
-  const globRegex = useMemo(
-    () => (isGlob && search.trim() ? globToRegex(search) : null),
-    [isGlob, search]
-  );
-
-  // 缓存每个根节点的过滤结果，避免每次渲染都重复 O(n) 遍历
-  const filteredRoots = useMemo(() => {
-    return state.rootNodes.map((root) => ({
-      root,
-      filtered: isGlob && globRegex
-        ? filterTreeByGlob(root, globRegex)
-        : filterTree(root, search),
-    }));
-  }, [state.rootNodes, isGlob, globRegex, search]);
 
   return (
     <div

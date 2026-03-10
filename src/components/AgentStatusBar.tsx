@@ -54,7 +54,7 @@ export function AgentStatusBar({ session }: AgentStatusBarProps) {
       )}
 
       {/* Cost */}
-      {session.costUsd !== undefined && (
+      {session.costUsd != null && (
         <span className="text-muted-foreground">${session.costUsd.toFixed(4)}</span>
       )}
 

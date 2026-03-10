@@ -157,7 +157,7 @@ export function useAgentEvents(snapshotRef: React.MutableRefObject<Record<string
           payload: {
             sessionId: payload.session_id,
             message: {
-              id: `err-${Date.now()}`,
+              id: `err-${Date.now()}-${Math.random().toString(36).slice(2)}`,
               type: "error",
               role: "assistant",
               content: payload.message,

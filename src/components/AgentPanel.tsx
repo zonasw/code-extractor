@@ -63,6 +63,17 @@ export function AgentPanel() {
     setShowSkills(false);
   }
 
+  // Build full message history by following the resumeSessionId chain
+  const allMessages = (() => {
+    const chain: typeof activeSession[] = [];
+    let s = activeSession;
+    while (s) {
+      chain.unshift(s);
+      s = s.resumeSessionId ? agentState.sessions[s.resumeSessionId] : null;
+    }
+    return chain.flatMap((session) => session?.messages ?? []);
+  })();
+
   const showDiff =
     activeSession?.status === "completed" &&
     (activeSession.fileChanges?.length ?? 0) > 0;
@@ -155,7 +166,7 @@ export function AgentPanel() {
         )}
 
         {/* Message list */}
-        <AgentMessageList messages={activeSession?.messages ?? []} />
+        <AgentMessageList messages={allMessages} />
 
         {/* Diff viewer */}
         {showDiff && (

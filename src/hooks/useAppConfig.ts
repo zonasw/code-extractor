@@ -75,8 +75,8 @@ export function useAppConfig() {
   async function saveSelectedPaths(paths: string[]): Promise<void> {
     try {
       await invoke("save_selected_paths", { paths });
-    } catch {
-      // silent
+    } catch (e) {
+      console.warn("Failed to save selected paths:", e);
     }
   }
 

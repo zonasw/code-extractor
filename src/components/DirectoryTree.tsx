@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { FolderPlus, X, RefreshCw, Search, ChevronsUpDown, ChevronsDownUp, FlipHorizontal2 } from "lucide-react";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useAppContext } from "@/context/AppContext";
@@ -118,7 +118,20 @@ export function DirectoryTree() {
   }
 
   const isGlob = isGlobPattern(search);
-  const globRegex = isGlob && search.trim() ? globToRegex(search) : null;
+  const globRegex = useMemo(
+    () => (isGlob && search.trim() ? globToRegex(search) : null),
+    [isGlob, search]
+  );
+
+  // 缓存每个根节点的过滤结果，避免每次渲染都重复 O(n) 遍历
+  const filteredRoots = useMemo(() => {
+    return state.rootNodes.map((root) => ({
+      root,
+      filtered: isGlob && globRegex
+        ? filterTreeByGlob(root, globRegex)
+        : filterTree(root, search),
+    }));
+  }, [state.rootNodes, isGlob, globRegex, search]);
 
   return (
     <div
@@ -184,10 +197,7 @@ export function DirectoryTree() {
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
         <div className="py-1">
-          {state.rootNodes.map((root) => {
-            const filtered = isGlob && globRegex
-              ? filterTreeByGlob(root, globRegex)
-              : filterTree(root, search);
+          {filteredRoots.map(({ root, filtered }) => {
             if (!filtered) return null;
 
             // Root header stats

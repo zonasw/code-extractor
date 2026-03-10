@@ -16,9 +16,12 @@ export function isBinaryFile(extension: string): boolean {
   return BINARY_EXTENSIONS.has(extension.toLowerCase());
 }
 
-/** Returns true if file size exceeds the large-file threshold (500KB) */
+/** 大文件阈值（字节），超过此大小将显示警告图标 */
+export const LARGE_FILE_THRESHOLD = 500 * 1024; // 500KB
+
+/** Returns true if file size exceeds the large-file threshold */
 export function isLargeFile(size: number): boolean {
-  return size > 500 * 1024;
+  return size > LARGE_FILE_THRESHOLD;
 }
 
 /**

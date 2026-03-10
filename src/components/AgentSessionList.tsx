@@ -1,5 +1,5 @@
 import { RotateCw, Trash2, MessageSquarePlus } from "lucide-react";
-import { AgentSession } from "@/types/agent";
+import { AgentSession, AGENT_STATUS_DOT, AGENT_STATUS_LABELS } from "@/types/agent";
 
 interface AgentSessionListProps {
   sessions: AgentSession[];
@@ -8,24 +8,6 @@ interface AgentSessionListProps {
   onContinue: (session: AgentSession) => void;
   onClear: (id: string) => void;
 }
-
-const STATUS_DOT: Record<string, string> = {
-  running: "bg-green-500 animate-pulse",
-  completed: "bg-blue-500",
-  error: "bg-red-500",
-  cancelled: "bg-muted-foreground/40",
-  idle: "bg-muted-foreground/40",
-  waiting_approval: "bg-yellow-500",
-};
-
-const STATUS_LABEL: Record<string, string> = {
-  running: "运行中",
-  completed: "完成",
-  error: "出错",
-  cancelled: "已取消",
-  idle: "空闲",
-  waiting_approval: "审批",
-};
 
 function formatRelative(ts: number): string {
   const diff = Date.now() - ts;
@@ -60,7 +42,7 @@ export function AgentSessionList({
     <div className="flex-1 overflow-y-auto">
       {sorted.map((session) => {
         const isActive = session.id === activeSessionId;
-        const dotClass = STATUS_DOT[session.status] ?? STATUS_DOT.idle;
+        const dotClass = AGENT_STATUS_DOT[session.status] ?? AGENT_STATUS_DOT.idle;
         const isTerminal = ["completed", "error", "cancelled"].includes(session.status);
 
         return (
@@ -88,7 +70,7 @@ export function AgentSessionList({
 
             {/* Meta row */}
             <div className="flex items-center gap-2 pl-3 text-[10px] text-muted-foreground">
-              <span>{STATUS_LABEL[session.status] ?? session.status}</span>
+              <span>{AGENT_STATUS_LABELS[session.status] ?? session.status}</span>
               {session.numTurns !== undefined && (
                 <span>{session.numTurns} 轮</span>
               )}

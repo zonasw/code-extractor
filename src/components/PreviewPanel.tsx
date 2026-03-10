@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Loader2, FileText, AlertCircle, ZoomIn, ZoomOut, ArrowDownUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -28,12 +28,22 @@ export function PreviewPanel() {
   const [viewMode, setViewMode] = useState<"files" | "output">("files");
 
   // 按大小排序时使用 getSelectedFileSizes（已按 size 降序），否则按路径字母序
-  const fileSizeMap = new Map(
-    getSelectedFileSizes(state.rootNodes, state.selectedPaths).map((f) => [f.path, f.size])
+  const selectedFileSizes = useMemo(
+    () => getSelectedFileSizes(state.rootNodes, state.selectedPaths),
+    [state.rootNodes, state.selectedPaths]
   );
-  const selectedFiles = sortBySize
-    ? getSelectedFileSizes(state.rootNodes, state.selectedPaths).map((f) => f.path)
-    : Array.from(state.selectedPaths).sort();
+
+  const fileSizeMap = useMemo(
+    () => new Map(selectedFileSizes.map((f) => [f.path, f.size])),
+    [selectedFileSizes]
+  );
+
+  const selectedFiles = useMemo(
+    () => sortBySize
+      ? selectedFileSizes.map((f) => f.path)
+      : Array.from(state.selectedPaths).sort(),
+    [sortBySize, selectedFileSizes, state.selectedPaths]
+  );
 
   const isDark = resolvedTheme === "dark";
 

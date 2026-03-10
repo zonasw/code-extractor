@@ -4,6 +4,7 @@ import { Plus, FolderGit2, Globe, Pencil, Trash2, X, Check } from "lucide-react"
 import { Skill } from "@/types/agent";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 interface AgentSkillPickerProps {
   workingDir: string;
@@ -56,7 +57,7 @@ export function AgentSkillPicker({ workingDir, onInsert }: AgentSkillPickerProps
       setNewContent("");
       await reload();
     } catch (e) {
-      alert(String(e));
+      toast.error("保存技能失败", { description: String(e) });
     }
   }
 
@@ -74,7 +75,7 @@ export function AgentSkillPicker({ workingDir, onInsert }: AgentSkillPickerProps
       setEditing(null);
       await reload();
     } catch (e) {
-      alert(String(e));
+      toast.error("更新技能失败", { description: String(e) });
     }
   }
 
@@ -88,7 +89,7 @@ export function AgentSkillPicker({ workingDir, onInsert }: AgentSkillPickerProps
       setDeleteConfirm(null);
       await reload();
     } catch (e) {
-      alert(String(e));
+      toast.error("删除技能失败", { description: String(e) });
     }
   }
 

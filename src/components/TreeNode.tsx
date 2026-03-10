@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, memo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { toast } from "sonner";
@@ -43,8 +43,12 @@ export const TreeNode = memo(function TreeNode({ node, depth = 0, forceExpand = 
 
   const isExpanded = forceExpand || expanded;
 
-  // Compute dir leaves once
-  const dirLeaves = node.is_dir ? collectLeaves(node) : null;
+  // Memoize leaf paths — only changes when node.children changes
+  const dirLeaves = useMemo(
+    () => (node.is_dir ? collectLeaves(node) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [node]
+  );
   const dirSelectedCount = dirLeaves
     ? dirLeaves.filter((p) => state.selectedPaths.has(p)).length
     : 0;

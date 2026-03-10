@@ -130,19 +130,20 @@ export type AgentProvider = "anthropic" | "openrouter" | "custom";
 
 export const PROVIDER_MODELS: Record<AgentProvider, { value: string; label: string }[]> = {
   anthropic: [
-    { value: "", label: "默认 (CLI 自动选择)" },
+    { value: "__default__", label: "默认 (CLI 自动选择)" },
     { value: "claude-opus-4-5", label: "Claude Opus 4.5" },
     { value: "claude-sonnet-4-5", label: "Claude Sonnet 4.5" },
     { value: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5" },
   ],
   openrouter: [
-    { value: "anthropic/claude-sonnet-4.6", label: "Claude Sonnet 4.6" },
-    { value: "anthropic/claude-opus-4.6", label: "Claude Opus 4.6" },
-    { value: "anthropic/claude-sonnet-4-5", label: "Claude Sonnet 4.5" },
-    { value: "anthropic/claude-opus-4-5", label: "Claude Opus 4.5" },
+    { value: "__default__", label: "默认 (CLI 自动选择)" },
+    { value: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
+    { value: "claude-opus-4-6", label: "Claude Opus 4.6" },
+    { value: "claude-sonnet-4-5", label: "Claude Sonnet 4.5" },
+    { value: "claude-opus-4-5", label: "Claude Opus 4.5" },
   ],
   custom: [
-    { value: "", label: "默认 (CLI 自动选择)" },
+    { value: "__default__", label: "默认 (CLI 自动选择)" },
     { value: "claude-opus-4-5", label: "Claude Opus 4.5" },
     { value: "claude-sonnet-4-5", label: "Claude Sonnet 4.5" },
   ],

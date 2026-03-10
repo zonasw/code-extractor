@@ -14,6 +14,9 @@ export function useAgent() {
   const { state: appState } = useAppContext();
   // Map: sessionId -> snapshot taken before agent ran (fallback for non-git)
   const snapshotRef = useRef<Record<string, FileSnapshot[]>>({});
+  // Always-fresh ref so revertChanges doesn't need agentState in its dep array
+  const sessionsRef = useRef(agentState.sessions);
+  sessionsRef.current = agentState.sessions;
 
   // 事件监听与 diff 计算委托给独立 hook
   useAgentEvents(snapshotRef);
@@ -96,7 +99,7 @@ export function useAgent() {
         },
       });
     },
-    [appState.selectedPaths, appState.rootNodes, agentState, dispatch]
+    [appState.selectedPaths, appState.rootNodes, agentState.config, dispatch]
   );
 
   // ---------------------------------------------------------------------------
@@ -115,7 +118,7 @@ export function useAgent() {
   // ---------------------------------------------------------------------------
   const revertChanges = useCallback(
     async (sessionId: string) => {
-      const session = agentState.sessions[sessionId];
+      const session = sessionsRef.current[sessionId];
       if (!session) return;
 
       if (session.isGitRepo) {
@@ -128,7 +131,7 @@ export function useAgent() {
 
       dispatch({ type: "ADD_FILE_CHANGES", payload: { sessionId, changes: [] } });
     },
-    [agentState.sessions, dispatch]
+    [dispatch]
   );
 
   // ---------------------------------------------------------------------------

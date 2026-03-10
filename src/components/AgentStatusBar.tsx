@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { GitBranch } from "lucide-react";
 import { AgentSession, AGENT_STATUS_LABELS, AGENT_STATUS_COLORS } from "@/types/agent";
 
@@ -6,6 +7,15 @@ interface AgentStatusBarProps {
 }
 
 export function AgentStatusBar({ session }: AgentStatusBarProps) {
+  const [now, setNow] = useState(() => Date.now());
+
+  // Tick every second only while session is running
+  useEffect(() => {
+    if (!session || session.status !== "running") return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [session?.status, session?.id]);
+
   if (!session) {
     return (
       <div className="flex items-center gap-2 px-3 py-1.5 border-b text-xs text-muted-foreground">
@@ -20,7 +30,7 @@ export function AgentStatusBar({ session }: AgentStatusBarProps) {
 
   const elapsed = session.endedAt
     ? ((session.endedAt - session.startedAt) / 1000).toFixed(1) + "s"
-    : ((Date.now() - session.startedAt) / 1000).toFixed(0) + "s";
+    : ((now - session.startedAt) / 1000).toFixed(0) + "s";
 
   return (
     <div className="flex items-center gap-3 px-3 py-1.5 border-b text-xs">

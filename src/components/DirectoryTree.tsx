@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { FolderPlus, X, RefreshCw, Search, ChevronsUpDown, ChevronsDownUp, FlipHorizontal2 } from "lucide-react";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { useAppContext } from "@/context/AppContext";
@@ -13,22 +13,30 @@ export function DirectoryTree() {
   const { refreshDirectory, removeDirectory, addDirectory } = useDirectoryTree();
   const { removeLastDirectory, addLastDirectory } = useAppConfig();
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [expandStamp, setExpandStamp] = useState<ExpandStamp | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
-  const isGlob = isGlobPattern(search);
+  function handleSearchChange(value: string) {
+    setSearch(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => setDebouncedSearch(value), 300);
+  }
+
+  const isGlob = isGlobPattern(debouncedSearch);
   const globRegex = useMemo(
-    () => (isGlob && search.trim() ? globToRegex(search) : null),
-    [isGlob, search]
+    () => (isGlob && debouncedSearch.trim() ? globToRegex(debouncedSearch) : null),
+    [isGlob, debouncedSearch]
   );
   const filteredRoots = useMemo(() => {
     return state.rootNodes.map((root) => ({
       root,
       filtered: isGlob && globRegex
         ? filterTreeByGlob(root, globRegex)
-        : filterTree(root, search),
+        : filterTree(root, debouncedSearch),
     }));
-  }, [state.rootNodes, isGlob, globRegex, search]);
+  }, [state.rootNodes, isGlob, globRegex, debouncedSearch]);
 
   // Drag & drop: listen for Tauri window drag events
   useEffect(() => {
@@ -76,12 +84,12 @@ export function DirectoryTree() {
 
   function handleSelectAllFiltered() {
     const allPaths: string[] = [];
-    const useGlob = isGlobPattern(search);
-    const regex = useGlob ? globToRegex(search) : null;
+    const useGlob = isGlobPattern(debouncedSearch);
+    const regex = useGlob ? globToRegex(debouncedSearch) : null;
     for (const root of state.rootNodes) {
       const filtered = useGlob && regex
         ? filterTreeByGlob(root, regex)
-        : filterTree(root, search);
+        : filterTree(root, debouncedSearch);
       if (filtered) {
         allPaths.push(...collectAllLeaves(filtered));
       }
@@ -169,16 +177,16 @@ export function DirectoryTree() {
           <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
           <input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => e.key === "Escape" && setSearch("")}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Escape") { handleSearchChange(""); } }}
             placeholder={`搜索文件 / 输入 *.ts 使用 glob...`}
             className={`flex-1 pl-7 pr-2 py-1 text-xs border focus:bg-background rounded-md outline-none transition-colors placeholder:text-muted-foreground/60 ${
-              isGlob && search.trim()
+              isGlob && debouncedSearch.trim()
                 ? "bg-amber-50 border-amber-300 dark:bg-amber-950/20 dark:border-amber-700"
                 : "bg-muted/50 border-transparent focus:border-border"
             }`}
           />
-          {search.trim() && (
+          {debouncedSearch.trim() && (
             <button
               onClick={handleSelectAllFiltered}
               className="shrink-0 text-xs px-2 py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
@@ -188,7 +196,7 @@ export function DirectoryTree() {
             </button>
           )}
         </div>
-        {isGlob && search.trim() && (
+        {isGlob && debouncedSearch.trim() && (
           <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5 px-1">Glob 模式匹配</p>
         )}
       </div>
@@ -249,7 +257,7 @@ export function DirectoryTree() {
                       key={child.path}
                       node={child}
                       depth={0}
-                      forceExpand={search.trim().length > 0}
+                      forceExpand={debouncedSearch.trim().length > 0}
                       expandStamp={expandStamp}
                     />
                   ))}

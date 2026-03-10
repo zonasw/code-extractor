@@ -15,6 +15,10 @@ import type {
  */
 export function useAgentEvents(snapshotRef: React.MutableRefObject<Record<string, FileSnapshot[]>>) {
   const { state: agentState, dispatch } = useAgentContext();
+  // Keep a ref so the stable event listener always reads fresh state
+  const agentStateRef = useRef(agentState);
+  agentStateRef.current = agentState;
+
   const pendingDeltaRef = useRef<Record<string, string>>({});
   const rafRef = useRef<number | null>(null);
 
@@ -30,7 +34,7 @@ export function useAgentEvents(snapshotRef: React.MutableRefObject<Record<string
   }
 
   async function computeDiff(sessionId: string) {
-    const session = agentState.sessions[sessionId];
+    const session = agentStateRef.current.sessions[sessionId];
     if (!session) return;
 
     try {

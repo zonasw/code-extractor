@@ -210,22 +210,22 @@ pub async fn start_claude_agent(
         "--include-partial-messages".to_string(),
         "--permission-mode".to_string(),
         params.permission_mode.clone(),
-        "--session-id".to_string(),
-        session_id.clone(),
     ];
+
+    // Multi-turn: resume a previous session (mutually exclusive with --session-id)
+    let is_resume = params.resume_session_id.as_deref().map(|s| !s.is_empty()).unwrap_or(false);
+    if is_resume {
+        args.push("--resume".to_string());
+        args.push(params.resume_session_id.as_ref().unwrap().clone());
+    } else {
+        args.push("--session-id".to_string());
+        args.push(session_id.clone());
+    }
 
     if let Some(model) = &params.model {
         if !model.is_empty() {
             args.push("--model".to_string());
             args.push(model.clone());
-        }
-    }
-
-    // Multi-turn: resume a previous session
-    if let Some(prev_sid) = &params.resume_session_id {
-        if !prev_sid.is_empty() {
-            args.push("--resume".to_string());
-            args.push(prev_sid.clone());
         }
     }
 

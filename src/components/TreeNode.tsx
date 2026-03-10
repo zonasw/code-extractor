@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import { toast } from "sonner";
@@ -27,7 +27,7 @@ interface TreeNodeProps {
   expandStamp?: ExpandStamp | null;
 }
 
-export function TreeNode({ node, depth = 0, forceExpand = false, expandStamp }: TreeNodeProps) {
+export const TreeNode = memo(function TreeNode({ node, depth = 0, forceExpand = false, expandStamp }: TreeNodeProps) {
   const [expanded, setExpanded] = useState(depth < 2);
   const { state, dispatch } = useAppContext();
   const { toggleNode, collectLeaves } = useDirectoryTree();
@@ -43,8 +43,12 @@ export function TreeNode({ node, depth = 0, forceExpand = false, expandStamp }: 
 
   const isExpanded = forceExpand || expanded;
 
-  // Compute dir leaves once
-  const dirLeaves = node.is_dir ? collectLeaves(node) : null;
+  // Memoize leaf paths — only changes when node.children changes
+  const dirLeaves = useMemo(
+    () => (node.is_dir ? collectLeaves(node) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [node]
+  );
   const dirSelectedCount = dirLeaves
     ? dirLeaves.filter((p) => state.selectedPaths.has(p)).length
     : 0;
@@ -70,15 +74,15 @@ export function TreeNode({ node, depth = 0, forceExpand = false, expandStamp }: 
   const binary = !node.is_dir && isBinaryFile(node.extension);
   const large = !node.is_dir && isLargeFile(node.size);
 
-  function handleRowClick() {
+  const handleRowClick = useCallback(() => {
     if (node.is_dir) {
       setExpanded((v) => !v);
     } else {
       toggleNode(node);
     }
-  }
+  }, [node, toggleNode]);
 
-  function handleKeyDown(e: React.KeyboardEvent) {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     switch (e.key) {
       case " ":
         e.preventDefault();
@@ -109,14 +113,14 @@ export function TreeNode({ node, depth = 0, forceExpand = false, expandStamp }: 
         break;
       }
     }
-  }
+  }, [node, toggleNode, isExpanded]);
 
-  async function handleCopyPath() {
+  const handleCopyPath = useCallback(async () => {
     await writeText(node.path);
     toast.success("路径已复制");
-  }
+  }, [node.path]);
 
-  async function handleCopyContent() {
+  const handleCopyContent = useCallback(async () => {
     try {
       const content = await invoke<string>("read_file_content", { path: node.path });
       await writeText(content);
@@ -124,17 +128,17 @@ export function TreeNode({ node, depth = 0, forceExpand = false, expandStamp }: 
     } catch {
       toast.error("读取文件失败");
     }
-  }
+  }, [node.path]);
 
-  function handleSelectAllChildren() {
+  const handleSelectAllChildren = useCallback(() => {
     const paths = collectAllLeaves(node);
     dispatch({ type: "ADD_SELECTED_PATHS", payload: paths });
-  }
+  }, [node, dispatch]);
 
-  function handleDeselectAllChildren() {
+  const handleDeselectAllChildren = useCallback(() => {
     const paths = collectAllLeaves(node);
     dispatch({ type: "REMOVE_SELECTED_PATHS", payload: paths });
-  }
+  }, [node, dispatch]);
 
   const indent = depth * 16;
 
@@ -261,7 +265,7 @@ export function TreeNode({ node, depth = 0, forceExpand = false, expandStamp }: 
       )}
     </div>
   );
-}
+});
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes}B`;

@@ -59,10 +59,10 @@ export function AgentTaskInput({
   const selectedCount = appState.selectedPaths.size;
   const models = PROVIDER_MODELS[config.provider] ?? PROVIDER_MODELS.anthropic;
 
-  // If current model not in new provider's list, reset to first option
-  const modelValue = models.some((m) => m.value === config.model)
-    ? config.model
-    : models[0].value;
+  // Use "__default__" sentinel because Select.Item disallows empty string values
+  // Map "" <-> "__default__" at the boundary
+  const rawModel = config.model || "__default__";
+  const modelValue = models.some((m) => m.value === rawModel) ? rawModel : models[0].value;
 
   async function handleStart() {
     const trimmed = task.trim();
@@ -113,7 +113,7 @@ export function AgentTaskInput({
         {/* 模型选择，随 provider 变化 */}
         <Select
           value={modelValue}
-          onValueChange={(v) => dispatch({ type: "SET_CONFIG", payload: { model: v } })}
+          onValueChange={(v) => dispatch({ type: "SET_CONFIG", payload: { model: v === "__default__" ? "" : v } })}
           disabled={isRunning}
         >
           <SelectTrigger className="h-7 text-xs w-40 shrink-0">

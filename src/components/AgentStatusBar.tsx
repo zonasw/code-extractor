@@ -1,29 +1,21 @@
+import { useState, useEffect } from "react";
 import { GitBranch } from "lucide-react";
-import { AgentSession } from "@/types/agent";
+import { AgentSession, AGENT_STATUS_LABELS, AGENT_STATUS_COLORS } from "@/types/agent";
 
 interface AgentStatusBarProps {
   session: AgentSession | null;
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  idle: "空闲",
-  running: "运行中",
-  waiting_approval: "等待审批",
-  completed: "已完成",
-  error: "出错",
-  cancelled: "已取消",
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  idle: "text-muted-foreground",
-  running: "text-green-500",
-  waiting_approval: "text-yellow-500",
-  completed: "text-blue-500",
-  error: "text-red-500",
-  cancelled: "text-muted-foreground",
-};
-
 export function AgentStatusBar({ session }: AgentStatusBarProps) {
+  const [now, setNow] = useState(() => Date.now());
+
+  // Tick every second only while session is running
+  useEffect(() => {
+    if (!session || session.status !== "running") return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [session?.status, session?.id]);
+
   if (!session) {
     return (
       <div className="flex items-center gap-2 px-3 py-1.5 border-b text-xs text-muted-foreground">
@@ -33,12 +25,12 @@ export function AgentStatusBar({ session }: AgentStatusBarProps) {
   }
 
   const status = session.status;
-  const colorClass = STATUS_COLORS[status] ?? "text-muted-foreground";
-  const label = STATUS_LABELS[status] ?? status;
+  const colorClass = AGENT_STATUS_COLORS[status] ?? "text-muted-foreground";
+  const label = AGENT_STATUS_LABELS[status] ?? status;
 
   const elapsed = session.endedAt
     ? ((session.endedAt - session.startedAt) / 1000).toFixed(1) + "s"
-    : ((Date.now() - session.startedAt) / 1000).toFixed(0) + "s";
+    : ((now - session.startedAt) / 1000).toFixed(0) + "s";
 
   return (
     <div className="flex items-center gap-3 px-3 py-1.5 border-b text-xs">
@@ -72,7 +64,7 @@ export function AgentStatusBar({ session }: AgentStatusBarProps) {
       )}
 
       {/* Cost */}
-      {session.costUsd !== undefined && (
+      {session.costUsd != null && (
         <span className="text-muted-foreground">${session.costUsd.toFixed(4)}</span>
       )}
 

@@ -8,6 +8,7 @@ import { DirectoryTree } from "@/components/DirectoryTree";
 import { ConfigPanel } from "@/components/ConfigPanel";
 import { PreviewPanel } from "@/components/PreviewPanel";
 import { AgentPanel } from "@/components/AgentPanel";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ShortcutHelpModal } from "@/components/ShortcutHelpModal";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { useDirectoryTree } from "@/hooks/useDirectoryTree";
@@ -205,7 +206,9 @@ function AppContent() {
                 <ConfigPanel />
               </TabsContent>
               <TabsContent value="agent" className="flex-1 overflow-hidden m-0 mt-2">
-                <AgentPanel />
+                <ErrorBoundary fallbackTitle="Agent 面板发生错误">
+                  <AgentPanel />
+                </ErrorBoundary>
               </TabsContent>
             </Tabs>
           </Panel>

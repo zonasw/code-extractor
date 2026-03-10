@@ -6,6 +6,36 @@ export type AgentStatus =
   | "error"
   | "cancelled";
 
+/** 共享：Agent 状态显示标签 */
+export const AGENT_STATUS_LABELS: Record<AgentStatus, string> = {
+  idle: "空闲",
+  running: "运行中",
+  waiting_approval: "等待审批",
+  completed: "已完成",
+  error: "出错",
+  cancelled: "已取消",
+};
+
+/** 共享：Agent 状态文字颜色类 */
+export const AGENT_STATUS_COLORS: Record<AgentStatus, string> = {
+  idle: "text-muted-foreground",
+  running: "text-green-500",
+  waiting_approval: "text-yellow-500",
+  completed: "text-blue-500",
+  error: "text-red-500",
+  cancelled: "text-muted-foreground",
+};
+
+/** 共享：Agent 状态指示点颜色类 */
+export const AGENT_STATUS_DOT: Record<AgentStatus, string> = {
+  running: "bg-green-500 animate-pulse",
+  completed: "bg-blue-500",
+  error: "bg-red-500",
+  cancelled: "bg-muted-foreground/40",
+  idle: "bg-muted-foreground/40",
+  waiting_approval: "bg-yellow-500",
+};
+
 export type AgentPermissionMode =
   | "acceptEdits"
   | "bypassPermissions"
@@ -100,18 +130,22 @@ export type AgentProvider = "anthropic" | "openrouter" | "custom";
 
 export const PROVIDER_MODELS: Record<AgentProvider, { value: string; label: string }[]> = {
   anthropic: [
-    { value: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
-    { value: "claude-opus-4-6", label: "Claude Opus 4.6" },
+    { value: "__default__", label: "默认 (CLI 自动选择)" },
+    { value: "claude-opus-4-5", label: "Claude Opus 4.5" },
+    { value: "claude-sonnet-4-5", label: "Claude Sonnet 4.5" },
     { value: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5" },
   ],
   openrouter: [
-    { value: "anthropic/claude-sonnet-4-5", label: "Claude Sonnet 4.5" },
-    { value: "anthropic/claude-opus-4-5", label: "Claude Opus 4.5" },
-    { value: "anthropic/claude-haiku-4-5", label: "Claude Haiku 4.5" },
-  ],
-  custom: [
+    { value: "__default__", label: "默认 (CLI 自动选择)" },
     { value: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
     { value: "claude-opus-4-6", label: "Claude Opus 4.6" },
+    { value: "claude-sonnet-4-5", label: "Claude Sonnet 4.5" },
+    { value: "claude-opus-4-5", label: "Claude Opus 4.5" },
+  ],
+  custom: [
+    { value: "__default__", label: "默认 (CLI 自动选择)" },
+    { value: "claude-opus-4-5", label: "Claude Opus 4.5" },
+    { value: "claude-sonnet-4-5", label: "Claude Sonnet 4.5" },
   ],
 };
 

@@ -45,6 +45,8 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'Code Extractor ${{ github.ref_name }}'
@@ -57,4 +59,5 @@ jobs:
             首次在 macOS 打开时若提示"无法验证开发者"，请前往 系统设置 → 隐私与安全性 → 仍要打开。
           releaseDraft: true
           prerelease: false
+          updaterJsonPreferNsis: false
           args: ${{ matrix.args }}

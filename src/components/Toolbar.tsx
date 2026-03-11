@@ -1,5 +1,5 @@
 import { open } from "@tauri-apps/plugin-dialog";
-import { FolderPlus, Download, Loader2, Sun, Moon, Copy, Check, X, HelpCircle, AlertTriangle } from "lucide-react";
+import { FolderPlus, Download, Loader2, Sun, Moon, Copy, Check, X, HelpCircle, AlertTriangle, ArrowUpCircle } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
 import { useTheme } from "next-themes";
@@ -10,6 +10,8 @@ import { useDirectoryTree } from "@/hooks/useDirectoryTree";
 import { useExport } from "@/hooks/useExport";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { getTotalSelectedSize, formatTokenCount, getSelectedFileSizes, bytesToTokens } from "@/lib/treeUtils";
+import { useUpdater } from "@/hooks/useUpdater";
+import { UpdateDialog } from "@/components/UpdateDialog";
 
 // 参考上限：100 万 tokens
 const TOKEN_LIMIT = 1_000_000;
@@ -22,6 +24,8 @@ export function Toolbar() {
   const { addLastDirectory } = useAppConfig();
   const { theme, setTheme } = useTheme();
   const [copied, setCopied] = useState(false);
+  const [showUpdateDialog, setShowUpdateDialog] = useState(false);
+  const { updateAvailable, isInstalling, downloadProgress, installUpdate, dismissUpdate } = useUpdater();
 
   async function handleAddDirectory() {
     const selected = await open({ directory: true, multiple: false });
@@ -199,6 +203,19 @@ export function Toolbar() {
         <HelpCircle className="w-4 h-4" />
       </Button>
 
+      {updateAvailable && (
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => setShowUpdateDialog(true)}
+          className="relative w-8 h-8 p-0"
+          title={`有新版本 ${updateAvailable.version} 可用`}
+        >
+          <ArrowUpCircle className="w-4 h-4 text-blue-500" />
+          <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-red-500" />
+        </Button>
+      )}
+
       <Button
         size="sm"
         variant="ghost"
@@ -212,6 +229,19 @@ export function Toolbar() {
           <Moon className="w-4 h-4" />
         )}
       </Button>
+
+      {updateAvailable && showUpdateDialog && (
+        <UpdateDialog
+          update={updateAvailable}
+          isInstalling={isInstalling}
+          downloadProgress={downloadProgress}
+          onInstall={installUpdate}
+          onDismiss={() => {
+            setShowUpdateDialog(false);
+            dismissUpdate();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -22,42 +22,110 @@ pub struct AgentProcessRegistry {
 
 #[tauri::command]
 pub async fn find_claude_cli() -> Result<String, String> {
-    // Try `which claude` via sh (works even with nvm-managed node)
-    let output = tokio::process::Command::new("sh")
-        .args(["-c", "which claude 2>/dev/null || echo ''"])
-        .output()
-        .await
-        .map_err(|e| e.to_string())?;
+    #[cfg(target_os = "windows")]
+    {
+        // Windows: use `where` command to locate claude.cmd or claude.exe
+        let output = tokio::process::Command::new("cmd")
+            .args(["/C", "where claude 2>nul"])
+            .output()
+            .await
+            .ok();
 
-    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if !path.is_empty() && std::path::Path::new(&path).exists() {
-        return Ok(path);
-    }
+        if let Some(out) = output {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            // `where` may return multiple lines; take the first valid one
+            for line in stdout.lines() {
+                let line = line.trim();
+                if !line.is_empty() && std::path::Path::new(line).exists() {
+                    return Ok(line.to_string());
+                }
+            }
+        }
 
-    // Fallback: scan nvm node bin dirs
-    let home = std::env::var("HOME").unwrap_or_default();
-    let nvm_dir = format!("{}/.nvm/versions/node", home);
-    if let Ok(entries) = std::fs::read_dir(&nvm_dir) {
-        for entry in entries.flatten() {
-            let candidate = entry.path().join("bin").join("claude");
+        // Fallback: scan common Windows npm/nvm install locations
+        let appdata = std::env::var("APPDATA").unwrap_or_default();
+        let userprofile = std::env::var("USERPROFILE").unwrap_or_default();
+
+        let candidates: Vec<std::path::PathBuf> = vec![
+            // npm global bin (most common)
+            std::path::Path::new(&appdata).join("npm").join("claude.cmd"),
+            std::path::Path::new(&appdata).join("npm").join("claude"),
+            // nvm for Windows
+            std::path::Path::new(&userprofile).join("AppData").join("Roaming").join("nvm").join("current").join("claude.cmd"),
+            // pnpm global
+            std::path::Path::new(&userprofile).join("AppData").join("Local").join("pnpm").join("claude.cmd"),
+            // yarn global
+            std::path::Path::new(&appdata).join("npm").join("claude.cmd"),
+        ];
+
+        for candidate in &candidates {
             if candidate.exists() {
                 return Ok(candidate.to_string_lossy().to_string());
             }
         }
-    }
 
-    // Common absolute paths
-    for p in &[
-        "/usr/local/bin/claude",
-        "/opt/homebrew/bin/claude",
-        "/usr/bin/claude",
-    ] {
-        if std::path::Path::new(p).exists() {
-            return Ok(p.to_string());
+        // Scan all nvm-managed node versions
+        let nvm_root = std::env::var("NVM_HOME").unwrap_or_else(|_| {
+            std::path::Path::new(&userprofile)
+                .join("AppData").join("Roaming").join("nvm")
+                .to_string_lossy()
+                .to_string()
+        });
+        if let Ok(entries) = std::fs::read_dir(&nvm_root) {
+            for entry in entries.flatten() {
+                if entry.path().is_dir() {
+                    for suffix in &["claude.cmd", "claude.exe", "claude"] {
+                        let candidate = entry.path().join(suffix);
+                        if candidate.exists() {
+                            return Ok(candidate.to_string_lossy().to_string());
+                        }
+                    }
+                }
+            }
         }
+
+        Err("claude CLI not found. Install it with: npm install -g @anthropic-ai/claude-code".to_string())
     }
 
-    Err("claude CLI not found. Install it with: npm install -g @anthropic-ai/claude-code".to_string())
+    #[cfg(not(target_os = "windows"))]
+    {
+        // Try `which claude` via sh (works even with nvm-managed node)
+        let output = tokio::process::Command::new("sh")
+            .args(["-c", "which claude 2>/dev/null || echo ''"])
+            .output()
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if !path.is_empty() && std::path::Path::new(&path).exists() {
+            return Ok(path);
+        }
+
+        // Fallback: scan nvm node bin dirs
+        let home = std::env::var("HOME").unwrap_or_default();
+        let nvm_dir = format!("{}/.nvm/versions/node", home);
+        if let Ok(entries) = std::fs::read_dir(&nvm_dir) {
+            for entry in entries.flatten() {
+                let candidate = entry.path().join("bin").join("claude");
+                if candidate.exists() {
+                    return Ok(candidate.to_string_lossy().to_string());
+                }
+            }
+        }
+
+        // Common absolute paths
+        for p in &[
+            "/usr/local/bin/claude",
+            "/opt/homebrew/bin/claude",
+            "/usr/bin/claude",
+        ] {
+            if std::path::Path::new(p).exists() {
+                return Ok(p.to_string());
+            }
+        }
+
+        Err("claude CLI not found. Install it with: npm install -g @anthropic-ai/claude-code".to_string())
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -256,13 +324,42 @@ pub async fn start_claude_agent(
     args.push(full_prompt);
 
     // Spawn the process
+    // On Windows, .cmd files must be invoked via `cmd /C` instead of directly
+    #[cfg(target_os = "windows")]
+    let mut cmd = {
+        let cli_path = &params.claude_cli_path;
+        let is_cmd_script = cli_path.to_lowercase().ends_with(".cmd")
+            || cli_path.to_lowercase().ends_with(".bat");
+        if is_cmd_script {
+            let mut c = tokio::process::Command::new("cmd");
+            c.arg("/C").arg(cli_path).args(&args);
+            c
+        } else {
+            let mut c = tokio::process::Command::new(cli_path);
+            c.args(&args);
+            c
+        }
+    };
+    #[cfg(not(target_os = "windows"))]
     let mut cmd = tokio::process::Command::new(&params.claude_cli_path);
-    cmd.args(&args)
-        .current_dir(&params.working_directory)
+    #[cfg(not(target_os = "windows"))]
+    cmd.args(&args);
+
+    cmd.current_dir(&params.working_directory)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .env_remove("CLAUDECODE") // avoid nested invocation error
         .env_remove("CLAUDE_CODE_ENTRYPOINT");
+
+    // Windows: Claude CLI requires git-bash. Set CLAUDE_CODE_GIT_BASH_PATH if not already set.
+    #[cfg(target_os = "windows")]
+    {
+        if std::env::var("CLAUDE_CODE_GIT_BASH_PATH").is_err() {
+            if let Some(bash_path) = find_git_bash() {
+                cmd.env("CLAUDE_CODE_GIT_BASH_PATH", bash_path);
+            }
+        }
+    }
 
     if let Some(key) = &params.api_key {
         if !key.is_empty() {
@@ -628,6 +725,49 @@ fn extract_tool_result_content(block: &serde_json::Value) -> String {
         }
     }
     String::new()
+}
+
+/// Find git-bash on Windows by checking common installation paths and PATH.
+#[cfg(target_os = "windows")]
+fn find_git_bash() -> Option<String> {
+    // Check common Git for Windows installation paths
+    let candidates = [
+        r"C:\Program Files\Git\bin\bash.exe",
+        r"C:\Program Files (x86)\Git\bin\bash.exe",
+    ];
+    for p in &candidates {
+        if std::path::Path::new(p).exists() {
+            return Some(p.to_string());
+        }
+    }
+
+    // Check LocalAppData (user-level Git install)
+    if let Ok(localappdata) = std::env::var("LOCALAPPDATA") {
+        let p = std::path::Path::new(&localappdata)
+            .join("Programs")
+            .join("Git")
+            .join("bin")
+            .join("bash.exe");
+        if p.exists() {
+            return Some(p.to_string_lossy().to_string());
+        }
+    }
+
+    // Try `where bash` via cmd
+    if let Ok(out) = std::process::Command::new("cmd")
+        .args(["/C", "where bash 2>nul"])
+        .output()
+    {
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        for line in stdout.lines() {
+            let line = line.trim();
+            if !line.is_empty() && std::path::Path::new(line).exists() {
+                return Some(line.to_string());
+            }
+        }
+    }
+
+    None
 }
 
 async fn build_inline_prompt(task: &str, context_files: &[String]) -> String {
